@@ -49,6 +49,45 @@ Useful flags:
 - `-editor-cmd "code -g {target}"`
 - `-no-test` and `-no-ignore`
 
+## Zed setup
+
+`keymap.json` example (`~/.config/zed/keymap.json`):
+
+```json
+[
+  {
+    "context": "Workspace",
+    "bindings": {
+      "cmd-shift-t": [
+        "task::Spawn",
+        {
+          "task_name": "snav"
+        }
+      ]
+    }
+  }
+]
+```
+
+`tasks.json` example (`~/.config/zed/tasks.json`):
+
+```json
+[
+  {
+    "label": "snav",
+    "command": "snav",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "reveal_target": "center",
+    "hide": "always",
+    "shell": "system",
+    "show_summary": false,
+    "show_command": false
+  }
+]
+```
+
 ## Keybindings
 
 - `j/k` or arrows: move
