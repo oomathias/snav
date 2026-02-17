@@ -18,22 +18,6 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
-const (
-	nord0  = "#2E3440"
-	nord1  = "#3B4252"
-	nord2  = "#434C5E"
-	nord3  = "#4C566A"
-	nord3b = "#6B7280"
-	nord3c = "#7B8598"
-	nord4  = "#D8DEE9"
-	nord7  = "#8FBCBB"
-	nord8  = "#88C0D0"
-	nord9  = "#81A1C1"
-	nord11 = "#BF616A"
-	nord14 = "#A3BE8C"
-	nord15 = "#B48EAD"
-)
-
 type config struct {
 	Root          string
 	Pattern       string
@@ -46,6 +30,8 @@ type config struct {
 	ContextRadius int
 	EditorCmd     string
 	NoIgnore      bool
+	NoTest        bool
+	Theme         string
 }
 
 type previewState struct {
@@ -104,7 +90,7 @@ func newModel(cfg config, out <-chan Candidate, done <-chan error, highlighter *
 	input.Focus()
 	input.CharLimit = 256
 	input.SetValue("")
-	input.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(nord8))
+	input.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(appTheme.Accent))
 
 	return model{
 		cfg:            cfg,
@@ -478,9 +464,9 @@ func (m model) View() string {
 }
 
 func (m model) renderHeader() string {
-	queryStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(nord4)).Background(lipgloss.Color(nord1)).Padding(0, 1)
-	statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(nord3))
-	errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(nord11))
+	queryStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(appTheme.Text)).Background(lipgloss.Color(appTheme.InputBG)).Padding(0, 1)
+	statusStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(appTheme.Muted))
+	errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(appTheme.Error))
 
 	scanState := "scanning"
 	if m.scanDone {
@@ -500,7 +486,7 @@ func (m model) renderHeader() string {
 }
 
 func (m model) renderFooter() string {
-	footerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(nord3))
+	footerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(appTheme.Muted))
 	text := "up/down move  pgup/pgdn jump  tab preview  y copy  enter open file  esc quit"
 	return footerStyle.Render(truncateText(text, m.width))
 }
@@ -511,7 +497,7 @@ func (m model) renderList(width int, height int) string {
 	}
 
 	if len(m.filtered) == 0 {
-		emptyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(nord3)).Width(width).Height(height)
+		emptyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(appTheme.Muted)).Width(width).Height(height)
 		return emptyStyle.Render("no matches")
 	}
 
@@ -570,13 +556,13 @@ func renderLocationLine(path string, line int, col int, width int, selected bool
 		return ""
 	}
 
-	dirStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(nord3))
-	fileStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(nord3c))
-	suffixStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(nord3b))
+	dirStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(appTheme.PathDir))
+	fileStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(appTheme.PathFile))
+	suffixStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(appTheme.PathMeta))
 	if selected {
-		dirStyle = dirStyle.Background(lipgloss.Color(nord2))
-		fileStyle = fileStyle.Background(lipgloss.Color(nord2))
-		suffixStyle = suffixStyle.Background(lipgloss.Color(nord2))
+		dirStyle = dirStyle.Background(lipgloss.Color(appTheme.SelectionBG))
+		fileStyle = fileStyle.Background(lipgloss.Color(appTheme.SelectionBG))
+		suffixStyle = suffixStyle.Background(lipgloss.Color(appTheme.SelectionBG))
 	}
 
 	emphasis := buildEmphasisMask(len(runes), fuzzyPositionsRunes(loc, queryRunes))
@@ -680,11 +666,11 @@ func (m model) renderPreview(width int, height int) string {
 		return ""
 	}
 
-	headerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(nord7)).Bold(true)
-	numStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(nord3))
+	headerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(appTheme.Header)).Bold(true)
+	numStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(appTheme.Dim))
 
 	if m.preview.Err != "" {
-		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(nord11))
+		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(appTheme.Error))
 		msg := headerStyle.Render("preview") + "\n" + errStyle.Render(truncateText(m.preview.Err, width))
 		return lipgloss.NewStyle().Width(width).Height(height).Render(msg)
 	}
@@ -831,30 +817,30 @@ func renderTokenLine(text string, spans []Span, selected bool, queryRunes []rune
 }
 
 func tokenStyle(cat TokenCategory, selected bool) lipgloss.Style {
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color(nord4))
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color(appTheme.Text))
 	if selected {
-		style = style.Background(lipgloss.Color(nord1))
+		style = style.Background(lipgloss.Color(appTheme.SelectionBG))
 	}
 
 	switch cat {
 	case TokenKeyword:
-		return style.Foreground(lipgloss.Color(nord9))
+		return style.Foreground(lipgloss.Color(appTheme.Keyword))
 	case TokenType:
-		return style.Foreground(lipgloss.Color(nord7))
+		return style.Foreground(lipgloss.Color(appTheme.Type))
 	case TokenFunction:
-		return style.Foreground(lipgloss.Color(nord8))
+		return style.Foreground(lipgloss.Color(appTheme.Function))
 	case TokenString:
-		return style.Foreground(lipgloss.Color(nord14))
+		return style.Foreground(lipgloss.Color(appTheme.String))
 	case TokenNumber:
-		return style.Foreground(lipgloss.Color(nord15))
+		return style.Foreground(lipgloss.Color(appTheme.Number))
 	case TokenComment:
-		return style.Foreground(lipgloss.Color(nord3))
+		return style.Foreground(lipgloss.Color(appTheme.Comment))
 	case TokenOperator:
-		return style.Foreground(lipgloss.Color(nord4)).Faint(true)
+		return style.Foreground(lipgloss.Color(appTheme.Operator)).Faint(true)
 	case TokenError:
-		return style.Foreground(lipgloss.Color(nord11)).Bold(true)
+		return style.Foreground(lipgloss.Color(appTheme.Error)).Bold(true)
 	default:
-		return style.Foreground(lipgloss.Color(nord4))
+		return style.Foreground(lipgloss.Color(appTheme.Text))
 	}
 }
 
@@ -1039,10 +1025,17 @@ func main() {
 	flag.IntVar(&cfg.ContextRadius, "context-radius", 40, "line radius for file context highlighting")
 	flag.StringVar(&cfg.EditorCmd, "editor-cmd", "", "override open command, supports {file} {line} {col} {target}")
 	flag.BoolVar(&cfg.NoIgnore, "no-ignore", false, "disable rg ignore files (.gitignore/.ignore/.rgignore)")
+	flag.BoolVar(&cfg.NoTest, "no-test", false, "exclude common test directories and test filename patterns")
+	flag.StringVar(&cfg.Theme, "theme", "nord", "color theme (for example: nord, dracula, monokai, github, solarized-dark)")
 	highlightContext := flag.String("highlight-context", string(HighlightContextSynthetic), "highlight mode: synthetic or file")
 	debounceMs := flag.Int("debounce-ms", 10, "query debounce in milliseconds")
 	flag.Parse()
 	cfg.Debounce = time.Duration(*debounceMs) * time.Millisecond
+
+	if err := SetTheme(cfg.Theme); err != nil {
+		fmt.Fprintf(os.Stderr, "invalid -theme: %v\n", err)
+		os.Exit(1)
+	}
 
 	mode, err := ParseHighlightContextMode(*highlightContext)
 	if err != nil {
@@ -1069,6 +1062,7 @@ func main() {
 		Root:     cfg.Root,
 		Pattern:  cfg.Pattern,
 		NoIgnore: cfg.NoIgnore,
+		NoTest:   cfg.NoTest,
 	})
 
 	highlighter := NewHighlighter(HighlighterConfig{

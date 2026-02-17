@@ -1,0 +1,33 @@
+[tools]
+go = "latest"
+
+[tasks.fmt]
+description = "Format Go source files"
+run = "gofmt -w src/*.go"
+
+[tasks.test]
+description = "Run all tests"
+run = "go test ./..."
+
+[tasks.bench]
+description = "Run benchmark suite"
+run = "go test ./src -bench . -benchmem"
+
+[tasks.build]
+description = "Build local symfind binary"
+run = "go build -buildvcs=false -o symfind ./src"
+
+[tasks.dev]
+description = "Run symfind via go run"
+raw = true
+run = "go run ./src"
+
+[tasks.cli]
+description = "Build and run local binary (interactive)"
+depends = ["build"]
+raw = true
+run = "./symfind"
+
+[tasks.clean]
+description = "Remove local build output"
+run = "rm -f symfind"

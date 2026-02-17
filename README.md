@@ -1,85 +1,114 @@
 # symfind
 
-`symfind` is a cross-platform interactive symbol finder for large repos.
+`symfind` is an interactive symbol finder for large repositories.
 
-It streams candidates from `rg`, renders each hit as a two-line row, and applies a Tree-sitter-based syntax pass to the code line using a Nord palette.
+It streams candidates from ripgrep, ranks by symbol key first, and renders a two-line TUI row per hit:
 
-Candidate discovery follows ripgrep ignore files (`.gitignore`, `.ignore`, `.rgignore`) by default.
+- `path:line:col` (de-emphasized metadata)
+- syntax-highlighted source line (Tree-sitter)
 
-## Features
+## Highlights
 
-- Two-line list rows:
-  - `path:line:col` in dim gray
-  - syntax-highlighted code line
-- Selection background that keeps token colors intact
-- Query emphasis (bold + underline) over token colors
-- Fast filtering with primary fuzzy match on extracted symbol key
-- Lazy highlighting: only visible rows plus a small buffer
-- LRU highlight cache:
-  - `synthetic`: key `(LangID, Text)`
-  - `file`: key `(LangID, File, Line, Text)`
-- Optional preview pane using the same highlighter pipeline
-- Two highlighting strategies:
-  - `synthetic` (Strategy A): tiny wrapped parse, very fast
-  - `file` (Strategy B): file-slice context parse for higher fidelity
+- Fast candidate ingestion with `rg --vimgrep --trim`
+- Fuzzy filtering with primary score on extracted symbol key
+- Incremental UI with lazy highlight scheduling (visible rows + buffer)
+- Tree-sitter highlighting cache with worker pool
+- Two highlight modes:
+  - `synthetic` (default): tiny wrapped parse for speed
+  - `file`: real file slice context for better accuracy
+- Theme support via Chroma styles (`--theme`)
+- Cross-platform open/copy behavior with overrideable editor command
+
+## Project Layout
+
+- `src/` application source and tests
+- `go.mod`, `go.sum` module definition
+- `mise.toml` task runner config
 
 ## Requirements
 
-- macOS, Linux, or Windows
-- Go toolchain
-- `rg` (ripgrep)
-- C toolchain for CGO/Tree-sitter grammars (for example `clang`/`gcc`)
-- Optional: `zed` CLI for direct open-on-selection with line/column
-- Clipboard tooling:
+- Go 1.24+
+- ripgrep (`rg`)
+- C toolchain for CGO Tree-sitter grammars (for example `clang`/`gcc`)
+
+Optional:
+
+- `zed` for direct open with line/column
+- clipboard tool:
   - macOS: `pbcopy`
   - Linux: `wl-copy`, `xclip`, or `xsel`
   - Windows: `clip`
 
-## Run
+## Quick Start
+
+Run directly:
 
 ```bash
-go run .
+go run ./src -root .
 ```
 
-Flags:
+Build binary:
+
+```bash
+go build -buildvcs=false -o symfind ./src
+./symfind -root .
+```
+
+## mise Tasks
+
+If you use [mise](https://mise.jdx.dev/):
+
+```bash
+mise run dev
+mise run test
+mise run build
+mise run bench
+mise run cli
+```
+
+Available tasks:
+
+- `fmt` format Go sources
+- `test` run unit/integration tests
+- `bench` run benchmarks
+- `build` build local `symfind` binary
+- `dev` run via `go run` (interactive)
+- `cli` build then run binary (interactive)
+- `clean` remove built binary
+
+## CLI Flags
 
 - `-root` search root (default `.`)
 - `-pattern` ripgrep regex for candidate extraction
-- `-preview` toggle preview pane (default on)
-- `-cache-size` highlight cache size (default `20000`)
-- `-workers` highlight worker count (default `GOMAXPROCS-1`)
-- `-visible-buffer` extra rows to pre-highlight (default `30`)
-- `-debounce-ms` query debounce in ms (default `10`)
-- `-highlight-context` one of `synthetic` or `file` (default `synthetic`)
-- `-context-radius` file-context line radius (default `40`)
-- `-editor-cmd` override open command. Placeholders: `{file}` `{line}` `{col}` `{target}`
+- `-preview` toggle preview pane
+- `-cache-size` highlight cache size
+- `-workers` highlight worker count
+- `-visible-buffer` extra rows to pre-highlight
+- `-debounce-ms` filter debounce in milliseconds
+- `-highlight-context` `synthetic|file`
+- `-context-radius` file context radius for `file` mode
+- `-editor-cmd` override open command (`{file}` `{line}` `{col}` `{target}`)
 - `-no-ignore` disable ripgrep ignore files (`.gitignore`, `.ignore`, `.rgignore`)
+- `-no-test` exclude common test/spec paths and generic `*test*`/`*spec*` files
+- `-theme` chroma style name (for example `nord`, `dracula`, `monokai`, `github`)
 
-## Keybindings
-
-- `up/down`, `j/k`: move selection
-- `pgup/pgdn`, `ctrl+u/ctrl+d`: jump
-- `tab`: toggle preview
-- `y`: copy `path:line:col`
-- `enter`: open in Zed (if available) or system file opener
-- `esc`, `ctrl+c`: quit
-
-Examples for `-editor-cmd`:
+Editor command examples:
 
 - VS Code: `-editor-cmd "code -g {target}"`
 - Helix: `-editor-cmd "hx {file}:{line}:{col}"`
 - Vim: `-editor-cmd "vim +{line} {file}"`
 
+## Keybindings
+
+- `up/down`, `j/k` move selection
+- `pgup/pgdn`, `ctrl+u/ctrl+d` jump page
+- `tab` toggle preview
+- `y` copy `path:line:col`
+- `enter` open in editor/file viewer
+- `esc`, `ctrl+c` quit
+
 ## Benchmarks
 
-Run a quick benchmark pass:
-
 ```bash
-go test -bench . -benchmem
+go test ./src -bench . -benchmem
 ```
-
-Included benchmarks cover:
-
-- filtering throughput on 50k candidates
-- synthetic per-line highlight cost
-- file-context per-line highlight cost

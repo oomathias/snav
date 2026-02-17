@@ -32,6 +32,22 @@ type ProducerConfig struct {
 	Pattern  string
 	Excludes []string
 	NoIgnore bool
+	NoTest   bool
+}
+
+var noTestExcludeGlobs = []string{
+	"test/**",
+	"tests/**",
+	"__tests__/**",
+	"spec/**",
+	"specs/**",
+	"**/test/**",
+	"**/tests/**",
+	"**/__tests__/**",
+	"**/spec/**",
+	"**/specs/**",
+	"**/*test*",
+	"**/*spec*",
 }
 
 func StartProducer(ctx context.Context, cfg ProducerConfig) (<-chan Candidate, <-chan error) {
@@ -54,6 +70,11 @@ func StartProducer(ctx context.Context, cfg ProducerConfig) (<-chan Candidate, <
 		}
 		for _, glob := range cfg.Excludes {
 			args = append(args, "--glob", "!"+glob)
+		}
+		if cfg.NoTest {
+			for _, glob := range noTestExcludeGlobs {
+				args = append(args, "--glob", "!"+glob)
+			}
 		}
 
 		pattern := strings.TrimSpace(cfg.Pattern)
