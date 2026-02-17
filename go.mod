@@ -1,4 +1,4 @@
-module symfind
+module snav
 
 go 1.24.2
 

@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 version: 2
 
-project_name: symfind
+project_name: snav
 
 before:
   hooks:
@@ -9,9 +9,9 @@ before:
     - go test ./...
 
 builds:
-  - id: symfind
+  - id: snav
     main: ./src
-    binary: symfind
+    binary: snav
     env:
       - CGO_ENABLED=1
     goos:
@@ -27,9 +27,9 @@ builds:
       - -s -w
 
 archives:
-  - id: symfind
+  - id: snav
     ids:
-      - symfind
+      - snav
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     formats:
       - tar.gz

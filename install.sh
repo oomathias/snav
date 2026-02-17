@@ -2,10 +2,10 @@
 
 set -euo pipefail
 
-REPO="${SYMFIND_REPO:-m7b/symfind}"
-BIN_NAME="${SYMFIND_BIN_NAME:-symfind}"
-VERSION="${SYMFIND_VERSION:-latest}"
-INSTALL_DIR="${SYMFIND_INSTALL_DIR:-/usr/local/bin}"
+REPO="${SNAV_REPO:-m7b/snav}"
+BIN_NAME="${SNAV_BIN_NAME:-snav}"
+VERSION="${SNAV_VERSION:-latest}"
+INSTALL_DIR="${SNAV_INSTALL_DIR:-/usr/local/bin}"
 
 need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then

@@ -1076,7 +1076,7 @@ func main() {
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "symfind failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, "snav failed: %v\n", err)
 		os.Exit(1)
 	}
 }

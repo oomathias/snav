@@ -1,6 +1,6 @@
-# symfind
+# snav
 
-`symfind` is an interactive symbol finder for large repositories.
+`snav` is an interactive symbol finder for large repositories.
 
 It streams candidates from ripgrep, ranks by symbol key first, and renders a two-line TUI row per hit:
 
@@ -50,8 +50,8 @@ go run ./src -root .
 Build binary:
 
 ```bash
-go build -buildvcs=false -o symfind ./src
-./symfind -root .
+go build -buildvcs=false -o snav ./src
+./snav -root .
 ```
 
 ## Install Script
@@ -59,20 +59,20 @@ go build -buildvcs=false -o symfind ./src
 You can install from GitHub Releases with:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/m7b/symfind/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/m7b/snav/main/install.sh | bash
 ```
 
 Optional environment overrides:
 
-- `SYMFIND_REPO` override GitHub repo (`owner/name`)
-- `SYMFIND_VERSION` install a specific tag (for example `v0.1.0`)
-- `SYMFIND_INSTALL_DIR` install directory (default `/usr/local/bin`)
+- `SNAV_REPO` override GitHub repo (`owner/name`)
+- `SNAV_VERSION` install a specific tag (for example `v0.1.0`)
+- `SNAV_INSTALL_DIR` install directory (default `/usr/local/bin`)
 
 Examples:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/m7b/symfind/main/install.sh | SYMFIND_VERSION=v0.1.0 bash
-curl -fsSL https://raw.githubusercontent.com/m7b/symfind/main/install.sh | SYMFIND_INSTALL_DIR="$HOME/.local/bin" bash
+curl -fsSL https://raw.githubusercontent.com/m7b/snav/main/install.sh | SNAV_VERSION=v0.1.0 bash
+curl -fsSL https://raw.githubusercontent.com/m7b/snav/main/install.sh | SNAV_INSTALL_DIR="$HOME/.local/bin" bash
 ```
 
 ## Releasing
@@ -105,7 +105,7 @@ Available tasks:
 - `fmt` format Go sources
 - `test` run unit/integration tests
 - `bench` run benchmarks
-- `build` build local `symfind` binary
+- `build` build local `snav` binary
 - `dev` run via `go run` (interactive)
 - `cli` build then run binary (interactive)
 - `clean` remove built binary

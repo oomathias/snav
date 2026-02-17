@@ -14,11 +14,20 @@ description = "Run benchmark suite"
 run = "go test ./src -bench . -benchmem"
 
 [tasks.build]
-description = "Build local symfind binary"
-run = "go build -buildvcs=false -o symfind ./src"
+description = "Build local snav binary"
+run = "go build -buildvcs=false -o snav ./src"
+
+[tasks.build-macos-arm64]
+description = "Build macOS arm64 snav binary"
+run = "GOOS=darwin GOARCH=arm64 go build -buildvcs=false -o snav ./src"
+
+[tasks.link]
+description = "Build macOS arm64 binary and install to /usr/local/bin"
+depends = ["build-macos-arm64"]
+run = "install -m 0755 snav /usr/local/bin/snav"
 
 [tasks.dev]
-description = "Run symfind via go run"
+description = "Run snav via go run"
 raw = true
 run = "go run ./src"
 
@@ -26,8 +35,8 @@ run = "go run ./src"
 description = "Build and run local binary (interactive)"
 depends = ["build"]
 raw = true
-run = "./symfind"
+run = "./snav"
 
 [tasks.clean]
 description = "Remove local build output"
-run = "rm -f symfind"
+run = "rm -f snav"

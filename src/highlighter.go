@@ -815,16 +815,16 @@ func scaffoldLine(lang LangID, line string) ([]byte, int, int) {
 
 	switch lang {
 	case LangGo:
-		prefix = "package p\nfunc _symfind_() {\n"
+		prefix = "package p\nfunc _snav_() {\n"
 		suffix = "\n}\n"
 	case LangRust:
-		prefix = "fn _symfind_() {\n"
+		prefix = "fn _snav_() {\n"
 		suffix = "\n}\n"
 	case LangJavaScript, LangTypeScript, LangTSX:
-		prefix = "function _symfind_() {\n"
+		prefix = "function _snav_() {\n"
 		suffix = "\n}\n"
 	case LangC, LangCPP:
-		prefix = "void _symfind_() {\n"
+		prefix = "void _snav_() {\n"
 		suffix = "\n}\n"
 	case LangJSON:
 		prefix = "{\n"

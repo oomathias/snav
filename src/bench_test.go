@@ -13,7 +13,7 @@ import (
 func BenchmarkFilterCandidates50k(b *testing.B) {
 	b.ReportAllocs()
 	candidates := makeBenchmarkCandidates(50_000)
-	queries := []string{"parse", "handler", "json", "symfind"}
+	queries := []string{"parse", "handler", "json", "snav"}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
