@@ -54,6 +54,40 @@ go build -buildvcs=false -o symfind ./src
 ./symfind -root .
 ```
 
+## Install Script
+
+You can install from GitHub Releases with:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/m7b/symfind/main/install.sh | bash
+```
+
+Optional environment overrides:
+
+- `SYMFIND_REPO` override GitHub repo (`owner/name`)
+- `SYMFIND_VERSION` install a specific tag (for example `v0.1.0`)
+- `SYMFIND_INSTALL_DIR` install directory (default `/usr/local/bin`)
+
+Examples:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/m7b/symfind/main/install.sh | SYMFIND_VERSION=v0.1.0 bash
+curl -fsSL https://raw.githubusercontent.com/m7b/symfind/main/install.sh | SYMFIND_INSTALL_DIR="$HOME/.local/bin" bash
+```
+
+## Releasing
+
+GoReleaser config lives in `.goreleaser.yaml` (with schema support from `https://goreleaser.com/static/schema.json`).
+
+GitHub release workflow is in `.github/workflows/release.yml` and runs on pushed tags matching `v*`.
+
+Release flow:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
 ## mise Tasks
 
 If you use [mise](https://mise.jdx.dev/):
