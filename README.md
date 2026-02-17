@@ -20,7 +20,7 @@
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/m7b/snav/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/oomathias/snav/main/install.sh | bash
 ```
 
 Build from source:

@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-REPO="${SNAV_REPO:-m7b/snav}"
+REPO="${SNAV_REPO:-oomathias/snav}"
 BIN_NAME="${SNAV_BIN_NAME:-snav}"
 VERSION="${SNAV_VERSION:-latest}"
 INSTALL_DIR="${SNAV_INSTALL_DIR:-/usr/local/bin}"
