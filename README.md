@@ -1,5 +1,8 @@
 # snav
 
+> [!WARNING]
+> **Experimental:** snav is under active development and behavior may change between releases.
+
 <p align="center">
   <img src="./docs/snav.gif" alt="snav demo" />
 </p>
