@@ -1,7 +1,7 @@
 # snav
 
 > [!WARNING]
-> **Experimental:** snav is under active development and behavior may change between releases.
+> **Experimental:** snav is under development and behavior may change between releases.
 
 <p align="center">
   <img src="./docs/snav.gif" alt="snav demo" />
@@ -14,7 +14,9 @@
 
 ## Why snav
 
-- Streams candidates with `rg --vimgrep --trim`
+- Teleport to any symbol in your codebase
+- Streams candidates with `rg --vimgrep --null --trim`
+- Warm-starts from the last index for the same root while rescanning
 - Ranks by symbol key first, then surrounding context
 - Renders syntax-highlighted source lines with optional preview
 - Supports themes and custom editor open commands
@@ -50,9 +52,16 @@ Useful flags:
 - `-theme github`
 - `-highlight-context file`
 - `-editor-cmd "code -g {target}"`
-- `-no-test` and `-no-ignore`
+- `-exclude-tests` and `-no-ignore`
+
+Index cache:
+
+- snav keeps a single on-disk index for the most recent root (`$XDG_CACHE_HOME/snav/last_index.gob` or platform cache dir)
+- when you rerun snav on the same root and options, it loads cached candidates immediately, then refreshes in background
 
 ## Zed setup
+
+This is the setup used in the GIF above.
 
 `keymap.json` example (`~/.config/zed/keymap.json`):
 
@@ -78,7 +87,7 @@ Useful flags:
 [
   {
     "label": "snav",
-    "command": "snav",
+    "command": "snav --exclude-tests",
     "use_new_terminal": false,
     "allow_concurrent_runs": false,
     "reveal": "always",

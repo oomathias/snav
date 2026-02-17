@@ -101,21 +101,8 @@ func LoadThemePalette(name string) (ThemePalette, error) {
 func normalizeThemeName(name string) string {
 	n := strings.ToLower(strings.TrimSpace(name))
 	aliases := map[string]string{
-		"nord":                 "nord",
-		"dracula":              "dracula",
-		"monokai":              "monokai",
-		"github":               "github",
-		"github-dark":          "github-dark",
-		"solarized":            "solarized-dark",
-		"solarized-dark":       "solarized-dark",
-		"solarized-light":      "solarized-light",
-		"one-dark":             "onedark",
-		"onedark":              "onedark",
-		"gruvbox":              "gruvbox",
-		"catppuccin-latte":     "catppuccin-latte",
-		"catppuccin-frappe":    "catppuccin-frappe",
-		"catppuccin-macchiato": "catppuccin-macchiato",
-		"catppuccin-mocha":     "catppuccin-mocha",
+		"solarized": "solarized-dark",
+		"one-dark":  "onedark",
 	}
 	if mapped, ok := aliases[n]; ok {
 		return mapped

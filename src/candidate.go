@@ -9,9 +9,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
-	"strconv"
 	"strings"
+	"sync"
 	"unicode"
 )
 
@@ -28,14 +29,14 @@ type Candidate struct {
 }
 
 type ProducerConfig struct {
-	Root     string
-	Pattern  string
-	Excludes []string
-	NoIgnore bool
-	NoTest   bool
+	Root         string
+	Pattern      string
+	Excludes     []string
+	NoIgnore     bool
+	ExcludeTests bool
 }
 
-var noTestExcludeGlobs = []string{
+var testExcludeGlobs = []string{
 	"test/**",
 	"tests/**",
 	"__tests__/**",
@@ -46,8 +47,16 @@ var noTestExcludeGlobs = []string{
 	"**/__tests__/**",
 	"**/spec/**",
 	"**/specs/**",
-	"**/*test*",
-	"**/*spec*",
+	"*_test.*",
+	"*_spec.*",
+	"*.test.*",
+	"*.spec.*",
+	"test_*.py",
+	"**/*_test.*",
+	"**/*_spec.*",
+	"**/*.test.*",
+	"**/*.spec.*",
+	"**/test_*.py",
 }
 
 func StartProducer(ctx context.Context, cfg ProducerConfig) (<-chan Candidate, <-chan error) {
@@ -60,6 +69,7 @@ func StartProducer(ctx context.Context, cfg ProducerConfig) (<-chan Candidate, <
 
 		args := []string{
 			"--vimgrep",
+			"--null",
 			"--trim",
 			"--color", "never",
 			"--no-heading",
@@ -71,8 +81,8 @@ func StartProducer(ctx context.Context, cfg ProducerConfig) (<-chan Candidate, <
 		for _, glob := range cfg.Excludes {
 			args = append(args, "--glob", "!"+glob)
 		}
-		if cfg.NoTest {
-			for _, glob := range noTestExcludeGlobs {
+		if cfg.ExcludeTests {
+			for _, glob := range testExcludeGlobs {
 				args = append(args, "--glob", "!"+glob)
 			}
 		}
@@ -106,7 +116,7 @@ func StartProducer(ctx context.Context, cfg ProducerConfig) (<-chan Candidate, <
 
 		id := 0
 		for scanner.Scan() {
-			file, line, col, text, ok := parseRGLine(scanner.Text())
+			file, line, col, text, ok := parseRGVimgrepLine(scanner.Bytes())
 			if !ok {
 				continue
 			}
@@ -155,21 +165,55 @@ func StartProducer(ctx context.Context, cfg ProducerConfig) (<-chan Candidate, <
 	return out, done
 }
 
-func parseRGLine(line string) (file string, lineNo int, colNo int, text string, ok bool) {
-	parts := strings.SplitN(line, ":", 4)
-	if len(parts) != 4 {
+func parseRGVimgrepLine(raw []byte) (file string, lineNo int, colNo int, text string, ok bool) {
+	nul := bytes.IndexByte(raw, 0)
+	if nul <= 0 || nul >= len(raw)-1 {
 		return "", 0, 0, "", false
 	}
 
-	lineNo, err := strconv.Atoi(parts[1])
-	if err != nil {
+	file = string(raw[:nul])
+	rest := raw[nul+1:]
+
+	sep1 := bytes.IndexByte(rest, ':')
+	if sep1 <= 0 {
 		return "", 0, 0, "", false
 	}
-	colNo, err = strconv.Atoi(parts[2])
-	if err != nil {
+	parsedLine, ok := parsePositiveIntBytes(rest[:sep1])
+	if !ok {
 		return "", 0, 0, "", false
 	}
-	return parts[0], lineNo, colNo, parts[3], true
+	rest = rest[sep1+1:]
+
+	sep2 := bytes.IndexByte(rest, ':')
+	if sep2 <= 0 {
+		return "", 0, 0, "", false
+	}
+	parsedCol, ok := parsePositiveIntBytes(rest[:sep2])
+	if !ok {
+		return "", 0, 0, "", false
+	}
+
+	lineNo = parsedLine
+	colNo = parsedCol
+	text = strings.TrimRight(string(rest[sep2+1:]), "\r")
+	return file, lineNo, colNo, text, true
+}
+
+func parsePositiveIntBytes(raw []byte) (int, bool) {
+	if len(raw) == 0 {
+		return 0, false
+	}
+	v := 0
+	for _, b := range raw {
+		if b < '0' || b > '9' {
+			return 0, false
+		}
+		v = v*10 + int(b-'0')
+	}
+	if v <= 0 {
+		return 0, false
+	}
+	return v, true
 }
 
 var keyRegexes = []*regexp.Regexp{
@@ -192,9 +236,9 @@ func ExtractKey(text string, file string) string {
 	for _, re := range keyRegexes {
 		m := re.FindStringSubmatch(text)
 		if len(m) > 1 {
-			for i := 1; i < len(m); i++ {
-				if m[i] != "" {
-					return m[i]
+			for _, group := range m[1:] {
+				if group != "" {
+					return group
 				}
 			}
 		}
@@ -214,9 +258,12 @@ func ExtractKey(text string, file string) string {
 }
 
 type filteredCandidate struct {
-	Index int
-	Score int
+	Index int32
+	Score int32
 }
+
+var filterParallelThreshold = 20_000
+var filterMinChunkSize = 4_096
 
 func filterCandidates(candidates []Candidate, query string) []filteredCandidate {
 	q := trimRunes(query)
@@ -227,61 +274,301 @@ func filterCandidatesWithRunes(candidates []Candidate, q []rune) []filteredCandi
 	return filterCandidatesWithQueryRunes(candidates, nil, q)
 }
 
+func filterCandidatesSubsetWithQueryRunes(candidates []Candidate, subset []filteredCandidate, qRaw []rune, qLower []rune) []filteredCandidate {
+	return filterCandidatesCore(candidates, subset, qRaw, qLower)
+}
+
+func filterCandidatesRangeWithQueryRunes(candidates []Candidate, start int, end int, qRaw []rune, qLower []rune) []filteredCandidate {
+	if start < 0 {
+		start = 0
+	}
+	if end > len(candidates) {
+		end = len(candidates)
+	}
+	if start >= end {
+		return nil
+	}
+
+	caseSensitive := len(qRaw) == len(qLower)
+	n := end - start
+	workers := filterWorkerCount(n)
+
+	var out []filteredCandidate
+	if workers <= 1 {
+		out = make([]filteredCandidate, 0, max(1, n/4))
+		for i := start; i < end; i++ {
+			item, ok := scoreCandidate(&candidates[i], int32(i), qRaw, qLower, caseSensitive)
+			if !ok {
+				continue
+			}
+			out = append(out, item)
+		}
+	} else {
+		parts := make([][]filteredCandidate, workers)
+		var wg sync.WaitGroup
+		for worker := 0; worker < workers; worker++ {
+			chunkStart := start + worker*n/workers
+			chunkEnd := start + (worker+1)*n/workers
+			wg.Add(1)
+			go func(slot int, chunkStart int, chunkEnd int) {
+				defer wg.Done()
+				local := make([]filteredCandidate, 0, max(1, (chunkEnd-chunkStart)/4))
+				for i := chunkStart; i < chunkEnd; i++ {
+					item, ok := scoreCandidate(&candidates[i], int32(i), qRaw, qLower, caseSensitive)
+					if !ok {
+						continue
+					}
+					local = append(local, item)
+				}
+				parts[slot] = local
+			}(worker, chunkStart, chunkEnd)
+		}
+		wg.Wait()
+		out = flattenFilteredParts(parts)
+	}
+
+	sortFilteredCandidates(candidates, out)
+	return out
+}
+
 func filterCandidatesWithQueryRunes(candidates []Candidate, qRaw []rune, qLower []rune) []filteredCandidate {
+	return filterCandidatesCore(candidates, nil, qRaw, qLower)
+}
+
+func filterCandidatesCore(candidates []Candidate, subset []filteredCandidate, qRaw []rune, qLower []rune) []filteredCandidate {
 	if len(qLower) == 0 {
 		out := make([]filteredCandidate, len(candidates))
 		for i := range candidates {
-			out[i] = filteredCandidate{Index: i}
+			out[i] = filteredCandidate{Index: int32(i)}
 		}
 		return out
 	}
-
-	out := make([]filteredCandidate, 0, len(candidates)/4)
-	for i := range candidates {
-		cand := candidates[i]
-
-		keyScore, keyOK := fuzzyScore(cand.Key, qRaw, qLower)
-		textScore, textOK := fuzzyScore(cand.Text, qRaw, qLower)
-		pathScore, pathOK := fuzzyScore(cand.File, qRaw, qLower)
-
-		if !keyOK && !textOK && !pathOK {
-			continue
-		}
-
-		score := -1 << 20
-		if keyOK {
-			score = max(score, 3000+keyScore*3)
-		}
-		if textOK {
-			score = max(score, 1800+textScore*2-60)
-		}
-		if pathOK {
-			score = max(score, 1200+pathScore-120)
-		}
-
-		if keyOK && textOK {
-			score += 80
-		}
-
-		out = append(out, filteredCandidate{Index: i, Score: score})
+	if subset != nil && len(subset) == 0 {
+		return nil
 	}
 
-	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Score == out[j].Score {
-			left := candidates[out[i].Index]
-			right := candidates[out[j].Index]
-			if left.Key == right.Key {
-				return left.ID < right.ID
-			}
-			return left.Key < right.Key
+	caseSensitive := len(qRaw) == len(qLower)
+	n := len(candidates)
+	if subset != nil {
+		n = len(subset)
+	}
+
+	workers := filterWorkerCount(n)
+	var out []filteredCandidate
+	if workers <= 1 {
+		if subset == nil {
+			out = filterCandidatesSerial(candidates, qRaw, qLower, caseSensitive)
+		} else {
+			out = filterCandidatesSubsetSerial(candidates, subset, qRaw, qLower, caseSensitive)
 		}
-		return out[i].Score > out[j].Score
+	} else {
+		if subset == nil {
+			out = filterCandidatesParallel(candidates, qRaw, qLower, caseSensitive, workers)
+		} else {
+			out = filterCandidatesSubsetParallel(candidates, subset, qRaw, qLower, caseSensitive, workers)
+		}
+	}
+
+	sortFilteredCandidates(candidates, out)
+	return out
+}
+
+func filterWorkerCount(n int) int {
+	if n < filterParallelThreshold {
+		return 1
+	}
+
+	workers := runtime.GOMAXPROCS(0)
+	if workers < 2 {
+		return 1
+	}
+
+	maxUseful := n / filterMinChunkSize
+	if maxUseful < 2 {
+		return 1
+	}
+	if workers > maxUseful {
+		workers = maxUseful
+	}
+	if workers < 2 {
+		return 1
+	}
+
+	return workers
+}
+
+func filterCandidatesSerial(candidates []Candidate, qRaw []rune, qLower []rune, caseSensitive bool) []filteredCandidate {
+	out := make([]filteredCandidate, 0, len(candidates)/4)
+	for i := range candidates {
+		item, ok := scoreCandidate(&candidates[i], int32(i), qRaw, qLower, caseSensitive)
+		if !ok {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func filterCandidatesSubsetSerial(candidates []Candidate, subset []filteredCandidate, qRaw []rune, qLower []rune, caseSensitive bool) []filteredCandidate {
+	out := make([]filteredCandidate, 0, len(subset)/2)
+	for _, base := range subset {
+		idx := int(base.Index)
+		if idx < 0 || idx >= len(candidates) {
+			continue
+		}
+		item, ok := scoreCandidate(&candidates[idx], base.Index, qRaw, qLower, caseSensitive)
+		if !ok {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+func filterCandidatesParallel(candidates []Candidate, qRaw []rune, qLower []rune, caseSensitive bool, workers int) []filteredCandidate {
+	parts := make([][]filteredCandidate, workers)
+	var wg sync.WaitGroup
+
+	for worker := 0; worker < workers; worker++ {
+		start := worker * len(candidates) / workers
+		end := (worker + 1) * len(candidates) / workers
+		wg.Add(1)
+		go func(slot int, start int, end int) {
+			defer wg.Done()
+			local := make([]filteredCandidate, 0, max(1, (end-start)/4))
+			for i := start; i < end; i++ {
+				item, ok := scoreCandidate(&candidates[i], int32(i), qRaw, qLower, caseSensitive)
+				if !ok {
+					continue
+				}
+				local = append(local, item)
+			}
+			parts[slot] = local
+		}(worker, start, end)
+	}
+
+	wg.Wait()
+	return flattenFilteredParts(parts)
+}
+
+func filterCandidatesSubsetParallel(candidates []Candidate, subset []filteredCandidate, qRaw []rune, qLower []rune, caseSensitive bool, workers int) []filteredCandidate {
+	parts := make([][]filteredCandidate, workers)
+	var wg sync.WaitGroup
+
+	for worker := 0; worker < workers; worker++ {
+		start := worker * len(subset) / workers
+		end := (worker + 1) * len(subset) / workers
+		wg.Add(1)
+		go func(slot int, start int, end int) {
+			defer wg.Done()
+			local := make([]filteredCandidate, 0, max(1, (end-start)/2))
+			for i := start; i < end; i++ {
+				idx := int(subset[i].Index)
+				if idx < 0 || idx >= len(candidates) {
+					continue
+				}
+				item, ok := scoreCandidate(&candidates[idx], subset[i].Index, qRaw, qLower, caseSensitive)
+				if !ok {
+					continue
+				}
+				local = append(local, item)
+			}
+			parts[slot] = local
+		}(worker, start, end)
+	}
+
+	wg.Wait()
+	return flattenFilteredParts(parts)
+}
+
+func flattenFilteredParts(parts [][]filteredCandidate) []filteredCandidate {
+	total := 0
+	for _, part := range parts {
+		total += len(part)
+	}
+	out := make([]filteredCandidate, 0, total)
+	for _, part := range parts {
+		out = append(out, part...)
+	}
+	return out
+}
+
+func sortFilteredCandidates(candidates []Candidate, out []filteredCandidate) {
+	sort.Slice(out, func(i, j int) bool {
+		return lessFilteredCandidate(candidates, out[i], out[j])
 	})
+}
+
+func lessFilteredCandidate(candidates []Candidate, left filteredCandidate, right filteredCandidate) bool {
+	if left.Score != right.Score {
+		return left.Score > right.Score
+	}
+
+	leftCand := candidates[int(left.Index)]
+	rightCand := candidates[int(right.Index)]
+	if leftCand.Key != rightCand.Key {
+		return leftCand.Key < rightCand.Key
+	}
+	return leftCand.ID < rightCand.ID
+}
+
+func mergeFilteredCandidates(candidates []Candidate, left []filteredCandidate, right []filteredCandidate) []filteredCandidate {
+	if len(left) == 0 {
+		return right
+	}
+	if len(right) == 0 {
+		return left
+	}
+
+	out := make([]filteredCandidate, 0, len(left)+len(right))
+	i, j := 0, 0
+	for i < len(left) && j < len(right) {
+		if lessFilteredCandidate(candidates, left[i], right[j]) {
+			out = append(out, left[i])
+			i++
+		} else {
+			out = append(out, right[j])
+			j++
+		}
+	}
+	if i < len(left) {
+		out = append(out, left[i:]...)
+	}
+	if j < len(right) {
+		out = append(out, right[j:]...)
+	}
 
 	return out
 }
 
-func fuzzyScore(text string, queryRaw []rune, queryLower []rune) (int, bool) {
+func scoreCandidate(cand *Candidate, index int32, qRaw []rune, qLower []rune, caseSensitive bool) (filteredCandidate, bool) {
+	keyScore, keyOK := fuzzyScore(cand.Key, qRaw, qLower, caseSensitive)
+	textScore, textOK := fuzzyScore(cand.Text, qRaw, qLower, caseSensitive)
+	pathScore, pathOK := fuzzyScore(cand.File, qRaw, qLower, caseSensitive)
+
+	if !keyOK && !textOK && !pathOK {
+		return filteredCandidate{}, false
+	}
+
+	score := int32(-1 << 20)
+	if keyOK {
+		score = max(score, int32(3000+keyScore*3))
+	}
+	if textOK {
+		score = max(score, int32(1800+textScore*2-60))
+	}
+	if pathOK {
+		score = max(score, int32(1200+pathScore-120))
+	}
+
+	if keyOK && textOK {
+		score += 80
+	}
+
+	return filteredCandidate{Index: index, Score: score}, true
+}
+
+func fuzzyScore(text string, queryRaw []rune, queryLower []rune, caseSensitive bool) (int, bool) {
 	if len(queryLower) == 0 {
 		return 0, true
 	}
@@ -292,11 +579,10 @@ func fuzzyScore(text string, queryRaw []rune, queryLower []rune) (int, bool) {
 	runeIdx := 0
 	var prev rune
 	hasPrev := false
-	caseSensitive := len(queryRaw) == len(queryLower)
 	caseMatches := 0
 
 	for _, raw := range text {
-		r := unicode.ToLower(raw)
+		r := lowerRuneFast(raw)
 
 		if qi < len(queryLower) && r == queryLower[qi] {
 			bonus := 10
@@ -354,7 +640,7 @@ func fuzzyPositionsRunes(text string, queryLower []rune) []int {
 		if qi >= len(queryLower) {
 			break
 		}
-		if unicode.ToLower(raw) == queryLower[qi] {
+		if lowerRuneFast(raw) == queryLower[qi] {
 			out = append(out, idx)
 			qi++
 		}
@@ -384,9 +670,19 @@ func lowerRunes(r []rune) []rune {
 	}
 	out := make([]rune, len(r))
 	for i := range r {
-		out[i] = unicode.ToLower(r[i])
+		out[i] = lowerRuneFast(r[i])
 	}
 	return out
+}
+
+func lowerRuneFast(r rune) rune {
+	if r >= 'A' && r <= 'Z' {
+		return r + ('a' - 'A')
+	}
+	if r <= unicode.MaxASCII {
+		return r
+	}
+	return unicode.ToLower(r)
 }
 
 var matcherStopWords = map[string]bool{
@@ -402,8 +698,12 @@ var matcherStopWords = map[string]bool{
 }
 
 func isBoundaryRune(r rune) bool {
-	if r == '_' || r == '-' || r == '/' || r == '.' || r == ':' {
+	switch r {
+	case '_', '-', '/', '.', ':':
 		return true
+	}
+	if r <= unicode.MaxASCII {
+		return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9')
 	}
 	return !unicode.IsLetter(r) && !unicode.IsDigit(r)
 }

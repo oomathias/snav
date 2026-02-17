@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -30,7 +31,7 @@ type config struct {
 	ContextRadius int
 	EditorCmd     string
 	NoIgnore      bool
-	NoTest        bool
+	ExcludeTests  bool
 	Theme         string
 }
 
@@ -51,6 +52,7 @@ type model struct {
 
 	input      textinput.Model
 	query      string
+	queryRaw   []rune
 	queryRunes []rune
 
 	candidates []Candidate
@@ -59,14 +61,20 @@ type model struct {
 	cursor int
 	offset int
 
-	producerOut  <-chan Candidate
-	producerDone <-chan error
-	scanDone     bool
+	producerOut     <-chan Candidate
+	producerDone    <-chan error
+	scanDone        bool
+	producerCfg     ProducerConfig
+	rebuildFromScan bool
+	scanCandidates  []Candidate
 
 	highlighter *Highlighter
 
-	filterPending bool
-	filterDue     time.Time
+	filterPending          bool
+	filterDue              time.Time
+	resetSelectionOnFilter bool
+	lastFilterQueryRunes   []rune
+	lastFilterCandidateN   int
 
 	previewEnabled bool
 	preview        previewState
@@ -96,6 +104,7 @@ func newModel(cfg config, out <-chan Candidate, done <-chan error, highlighter *
 		cfg:            cfg,
 		input:          input,
 		query:          "",
+		queryRaw:       nil,
 		queryRunes:     nil,
 		producerOut:    out,
 		producerDone:   done,
@@ -104,6 +113,22 @@ func newModel(cfg config, out <-chan Candidate, done <-chan error, highlighter *
 		fileCache:      make(map[string][]string),
 		fileLangCache:  make(map[string]LangID),
 	}
+}
+
+func (m *model) useCachedIndex(candidates []Candidate) {
+	if len(candidates) == 0 {
+		return
+	}
+
+	m.rebuildFromScan = true
+	m.scanCandidates = make([]Candidate, 0, len(candidates))
+	m.candidates = candidates
+	m.filtered = make([]filteredCandidate, len(candidates))
+	for i := range candidates {
+		m.filtered[i] = filteredCandidate{Index: int32(i)}
+	}
+	m.lastFilterCandidateN = len(candidates)
+	m.status = fmt.Sprintf("using cached index (%d symbols)", len(candidates))
 }
 
 func (m model) Init() tea.Cmd {
@@ -198,7 +223,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		next := m.input.Value()
 		if next != prev {
 			m.query = next
-			m.queryRunes = lowerTrimRunes(next)
+			m.queryRaw = trimRunes(next)
+			m.queryRunes = lowerRunes(m.queryRaw)
+			m.resetSelectionOnFilter = true
 			m.scheduleFilter(m.cfg.Debounce)
 		}
 		return m, cmd
@@ -237,9 +264,6 @@ func (m *model) ensureCursor() {
 	}
 
 	page := m.rowsPerPage()
-	if page < 1 {
-		page = 1
-	}
 	if m.cursor < m.offset {
 		m.offset = m.cursor
 	}
@@ -256,22 +280,37 @@ func (m *model) ensureCursor() {
 }
 
 func (m *model) drainProducer(maxItems int) {
-	for i := 0; i < maxItems; i++ {
+	needFilter := false
+	for range maxItems {
 		select {
 		case cand, ok := <-m.producerOut:
 			if !ok {
 				m.producerOut = nil
+				if needFilter && !m.resetSelectionOnFilter {
+					m.scheduleFilter(0)
+				}
 				return
 			}
+			if m.rebuildFromScan {
+				m.scanCandidates = append(m.scanCandidates, cand)
+				continue
+			}
 			m.candidates = append(m.candidates, cand)
-			if strings.TrimSpace(m.query) == "" {
-				m.filtered = append(m.filtered, filteredCandidate{Index: len(m.candidates) - 1})
+			if len(m.queryRunes) == 0 {
+				m.filtered = append(m.filtered, filteredCandidate{Index: int32(len(m.candidates) - 1)})
 			} else {
-				m.scheduleFilter(m.cfg.Debounce)
+				needFilter = true
 			}
 		default:
+			if needFilter && !m.resetSelectionOnFilter {
+				m.scheduleFilter(0)
+			}
 			return
 		}
+	}
+
+	if needFilter && !m.resetSelectionOnFilter {
+		m.scheduleFilter(0)
 	}
 }
 
@@ -281,16 +320,30 @@ func (m *model) drainProducerDone() {
 	}
 	select {
 	case err, ok := <-m.producerDone:
-		if !ok {
-			m.scanDone = true
-			m.producerDone = nil
-			return
-		}
 		m.scanDone = true
 		m.producerDone = nil
-		if err != nil {
+		if ok && err != nil {
 			m.errMsg = err.Error()
+			return
 		}
+
+		if m.rebuildFromScan {
+			m.rebuildFromScan = false
+			m.candidates = m.scanCandidates
+			m.scanCandidates = nil
+			m.filtered = nil
+			m.lastFilterCandidateN = 0
+			m.lastFilterQueryRunes = nil
+			m.resetSelectionOnFilter = true
+			m.scheduleFilter(0)
+			m.status = fmt.Sprintf("index refreshed (%d symbols)", len(m.candidates))
+		}
+
+		cacheCfg := m.producerCfg
+		cacheCandidates := m.candidates
+		go func() {
+			_ = SaveIndexCache(cacheCfg, cacheCandidates)
+		}()
 	default:
 	}
 }
@@ -302,12 +355,33 @@ func (m *model) scheduleFilter(delay time.Duration) {
 
 func (m *model) applyFilter() {
 	m.filterPending = false
-	selectedID := 0
-	if cand, ok := m.selectedCandidate(); ok {
-		selectedID = cand.ID
+	sameQuery := runesEqual(m.queryRunes, m.lastFilterQueryRunes)
+	if len(m.candidates) == m.lastFilterCandidateN && sameQuery {
+		return
 	}
 
-	m.filtered = filterCandidates(m.candidates, m.query)
+	resetSelection := m.resetSelectionOnFilter
+	m.resetSelectionOnFilter = false
+
+	selectedID := 0
+	if !resetSelection {
+		if cand, ok := m.selectedCandidate(); ok {
+			selectedID = cand.ID
+		}
+	}
+
+	candidateN := len(m.candidates)
+	if !resetSelection && sameQuery && len(m.queryRunes) > 0 && candidateN > m.lastFilterCandidateN {
+		added := filterCandidatesRangeWithQueryRunes(m.candidates, m.lastFilterCandidateN, candidateN, m.queryRaw, m.queryRunes)
+		m.filtered = mergeFilteredCandidates(m.candidates, m.filtered, added)
+	} else if shouldUseIncrementalFilter(m.queryRunes, m.lastFilterQueryRunes, candidateN, m.lastFilterCandidateN) {
+		m.filtered = filterCandidatesSubsetWithQueryRunes(m.candidates, m.filtered, m.queryRaw, m.queryRunes)
+	} else {
+		m.filtered = filterCandidatesWithQueryRunes(m.candidates, m.queryRaw, m.queryRunes)
+	}
+	m.lastFilterQueryRunes = copyRunesReuse(m.lastFilterQueryRunes, m.queryRunes)
+	m.lastFilterCandidateN = candidateN
+
 	if len(m.filtered) == 0 {
 		m.cursor = 0
 		m.offset = 0
@@ -315,14 +389,14 @@ func (m *model) applyFilter() {
 		return
 	}
 
-	if selectedID == 0 {
+	if resetSelection || selectedID == 0 {
 		m.cursor = 0
 		m.offset = 0
 		return
 	}
 
 	for i := range m.filtered {
-		cand := m.candidates[m.filtered[i].Index]
+		cand := m.candidates[int(m.filtered[i].Index)]
 		if cand.ID == selectedID {
 			m.cursor = i
 			m.ensureCursor()
@@ -347,38 +421,28 @@ func (m *model) queueVisibleHighlights() {
 	start := max(0, m.offset-m.cfg.VisibleBuffer)
 	end := min(len(m.filtered), m.offset+m.rowsPerPage()+m.cfg.VisibleBuffer)
 	for i := start; i < end; i++ {
-		cand := m.candidates[m.filtered[i].Index]
+		cand := m.candidates[int(m.filtered[i].Index)]
 		text := truncateText(cand.Text, listW)
-		m.highlighter.Queue(m.highlightRequestForCandidate(cand, text))
+		m.highlighter.Queue(m.highlightRequest(cand.LangID, cand.File, cand.Line, text))
 	}
 
-	if !m.previewEnabled || len(m.preview.Lines) == 0 {
-		return
-	}
-
-	if previewH <= 1 {
+	if !m.previewEnabled || len(m.preview.Lines) == 0 || previewH <= 1 {
 		return
 	}
 
 	lines := m.preview.Lines
 	visible := min(len(lines), previewH-1)
 	maxCode := max(0, previewW-7)
-	for i := 0; i < visible; i++ {
+	for i := range visible {
 		lineNo := m.preview.StartLine + i
 		text := truncateText(lines[i], maxCode)
-		m.highlighter.Queue(m.highlightRequestForPreview(m.preview.Lang, m.preview.File, lineNo, text))
+		m.highlighter.Queue(m.highlightRequest(m.preview.Lang, m.preview.File, lineNo, text))
 	}
 }
 
 func (m *model) updatePreview() {
-	if !m.previewEnabled {
-		m.preview = previewState{}
-		m.previewKey = ""
-		return
-	}
-
 	cand, ok := m.selectedCandidate()
-	if !ok {
+	if !m.previewEnabled || !ok {
 		m.preview = previewState{}
 		m.previewKey = ""
 		return
@@ -402,11 +466,7 @@ func (m *model) updatePreview() {
 
 	lang := m.fileLangCache[cand.File]
 	if lang == "" {
-		first := ""
-		if len(fileLines) > 0 {
-			first = fileLines[0]
-		}
-		lang = DetectLanguageWithShebang(cand.File, first)
+		lang = DetectLanguageWithShebang(cand.File, fileLines[0])
 		m.fileLangCache[cand.File] = lang
 	}
 
@@ -502,18 +562,12 @@ func (m model) renderList(width int, height int) string {
 	}
 
 	rows := m.rowsPerPageWithHeight(height)
-	if rows <= 0 {
-		rows = 1
-	}
-	start := m.offset
-	if start < 0 {
-		start = 0
-	}
+	start := max(m.offset, 0)
 	end := min(len(m.filtered), start+rows)
 
 	lines := make([]string, 0, height)
 	for i := start; i < end; i++ {
-		cand := m.candidates[m.filtered[i].Index]
+		cand := m.candidates[int(m.filtered[i].Index)]
 		lineA, lineB := m.renderCandidateLines(cand, i == m.cursor, width)
 		lines = append(lines, lineA)
 		if len(lines) < height {
@@ -535,7 +589,7 @@ func (m model) renderCandidateLines(cand Candidate, selected bool, width int) (s
 	lineA := renderLocationLine(cand.File, cand.Line, cand.Col, width, selected, m.queryRunes)
 
 	text := truncateText(cand.Text, width)
-	req := m.highlightRequestForCandidate(cand, text)
+	req := m.highlightRequest(cand.LangID, cand.File, cand.Line, text)
 	spans, ok := m.highlighter.Lookup(req)
 	if !ok {
 		m.highlighter.Queue(req)
@@ -577,21 +631,16 @@ func renderLocationLine(path string, line int, col int, width int, selected bool
 		return 2
 	}
 
-	styleAt := func(i int) lipgloss.Style {
-		switch partAt(i) {
-		case 0:
-			return dirStyle
-		case 1:
-			return fileStyle
-		default:
-			return suffixStyle
-		}
-	}
-
 	var b strings.Builder
 	for i := 0; i < len(runes); {
-		baseStyle := styleAt(i)
 		part := partAt(i)
+		baseStyle := suffixStyle
+		switch part {
+		case 0:
+			baseStyle = dirStyle
+		case 1:
+			baseStyle = fileStyle
+		}
 		emph := emphasisAt(emphasis, i)
 		j := i + 1
 		for j < len(runes) {
@@ -611,7 +660,7 @@ func renderLocationLine(path string, line int, col int, width int, selected bool
 		i = j
 	}
 
-	return padRightANSI(b.String(), width)
+	return b.String()
 }
 
 func formatLocationWithVisibleFilename(path string, line int, col int, width int) (string, int, int) {
@@ -634,10 +683,7 @@ func formatLocationWithVisibleFilename(path string, line int, col int, width int
 	if baseSuffixW >= width {
 		tr := truncateText(baseSuffix, width)
 		fileEnd := utf8RuneCount(tr)
-		fileLen := utf8RuneCount(base)
-		if fileLen > fileEnd {
-			fileLen = fileEnd
-		}
+		fileLen := min(utf8RuneCount(base), fileEnd)
 		return tr, 0, fileLen
 	}
 
@@ -682,18 +728,15 @@ func (m model) renderPreview(width int, height int) string {
 	lines = append(lines, headerStyle.Render(truncateText("preview  "+m.preview.File, width)))
 
 	avail := height - 1
-	if avail < 0 {
-		avail = 0
-	}
+	maxCode := max(0, width-7)
 	for i := 0; i < avail && i < len(m.preview.Lines); i++ {
 		lineNo := m.preview.StartLine + i
 		prefix := fmt.Sprintf("%6d ", lineNo)
 		prefixRendered := numStyle.Render(prefix)
 
 		selected := lineNo == m.preview.SelectedLine
-		maxCode := max(0, width-7)
 		text := truncateText(m.preview.Lines[i], maxCode)
-		req := m.highlightRequestForPreview(m.preview.Lang, m.preview.File, lineNo, text)
+		req := m.highlightRequest(m.preview.Lang, m.preview.File, lineNo, text)
 		spans, ok := m.highlighter.Lookup(req)
 		if !ok {
 			m.highlighter.Queue(req)
@@ -714,23 +757,10 @@ func (m model) selectedCandidate() (Candidate, bool) {
 	if len(m.filtered) == 0 || m.cursor < 0 || m.cursor >= len(m.filtered) {
 		return Candidate{}, false
 	}
-	return m.candidates[m.filtered[m.cursor].Index], true
+	return m.candidates[int(m.filtered[m.cursor].Index)], true
 }
 
-func (m model) highlightRequestForCandidate(cand Candidate, text string) HighlightRequest {
-	req := HighlightRequest{
-		Lang: cand.LangID,
-		Text: text,
-		Mode: m.cfg.HighlightMode,
-	}
-	if m.cfg.HighlightMode == HighlightContextFile {
-		req.File = cand.File
-		req.Line = cand.Line
-	}
-	return req
-}
-
-func (m model) highlightRequestForPreview(lang LangID, file string, line int, text string) HighlightRequest {
+func (m model) highlightRequest(lang LangID, file string, line int, text string) HighlightRequest {
 	req := HighlightRequest{
 		Lang: lang,
 		Text: text,
@@ -749,29 +779,19 @@ func (m model) rowsPerPage() int {
 }
 
 func (m model) rowsPerPageWithHeight(h int) int {
-	if h <= 0 {
-		return 1
-	}
-	rows := h / 2
-	if rows < 1 {
-		rows = 1
-	}
-	return rows
+	return max(1, h/2)
 }
 
 func (m model) layout() (listWidth int, listHeight int, previewWidth int, previewHeight int) {
 	headerHeight := 2
 	footerHeight := 1
-	contentH := m.height - headerHeight - footerHeight
-	if contentH < 1 {
-		contentH = 1
-	}
+	contentH := max(m.height-headerHeight-footerHeight, 1)
 
 	if !m.previewEnabled || m.width < 90 {
 		return m.width, contentH, 0, 0
 	}
 
-	previewWidth = max(30, m.width/3)
+	previewWidth = max(30, (m.width*9+10)/20)
 	listWidth = m.width - previewWidth - 1
 	if listWidth < 20 {
 		listWidth = m.width
@@ -840,7 +860,7 @@ func tokenStyle(cat TokenCategory, selected bool) lipgloss.Style {
 	case TokenError:
 		return style.Foreground(lipgloss.Color(appTheme.Error)).Bold(true)
 	default:
-		return style.Foreground(lipgloss.Color(appTheme.Text))
+		return style
 	}
 }
 
@@ -888,7 +908,10 @@ func openLocation(path string, line int, col int, editorCmd string) error {
 }
 
 func buildEditorCommand(template string, file string, line int, col int, target string) (string, []string, error) {
-	parts := strings.Fields(strings.TrimSpace(template))
+	parts, err := splitCommandLine(strings.TrimSpace(template))
+	if err != nil {
+		return "", nil, err
+	}
 	if len(parts) == 0 {
 		return "", nil, fmt.Errorf("editor command is empty")
 	}
@@ -907,6 +930,62 @@ func buildEditorCommand(template string, file string, line int, col int, target 
 	}
 
 	return parts[0], parts[1:], nil
+}
+
+func splitCommandLine(input string) ([]string, error) {
+	var parts []string
+	var current strings.Builder
+
+	tokenActive := false
+	inSingle := false
+	inDouble := false
+
+	flush := func() {
+		if !tokenActive {
+			return
+		}
+		parts = append(parts, current.String())
+		current.Reset()
+		tokenActive = false
+	}
+
+	for _, r := range input {
+		switch r {
+		case '\'':
+			if inDouble {
+				current.WriteRune(r)
+				tokenActive = true
+				continue
+			}
+			inSingle = !inSingle
+			tokenActive = true
+		case '"':
+			if inSingle {
+				current.WriteRune(r)
+				tokenActive = true
+				continue
+			}
+			inDouble = !inDouble
+			tokenActive = true
+		case ' ', '\t', '\n', '\r':
+			if inSingle || inDouble {
+				current.WriteRune(r)
+				tokenActive = true
+				continue
+			}
+			flush()
+		default:
+			current.WriteRune(r)
+			tokenActive = true
+		}
+	}
+
+	if inSingle || inDouble {
+		return nil, fmt.Errorf("editor command has unclosed quote")
+	}
+
+	flush()
+	return parts, nil
 }
 
 func copyToClipboard(s string) error {
@@ -970,7 +1049,7 @@ func truncateText(s string, maxWidth int) string {
 }
 
 func utf8RuneCount(s string) int {
-	return len([]rune(s))
+	return utf8.RuneCountInString(s)
 }
 
 func padRightANSI(s string, width int) string {
@@ -1008,10 +1087,41 @@ func buildEmphasisMask(runeLen int, positions []int) []bool {
 }
 
 func emphasisAt(mask []bool, idx int) bool {
-	if idx < 0 || idx >= len(mask) {
+	return idx >= 0 && idx < len(mask) && mask[idx]
+}
+
+func shouldUseIncrementalFilter(current []rune, previous []rune, candidateN int, previousCandidateN int) bool {
+	if len(current) == 0 || len(previous) == 0 {
 		return false
 	}
-	return mask[idx]
+	if len(current) <= len(previous) {
+		return false
+	}
+	if candidateN != previousCandidateN {
+		return false
+	}
+	if len(previous) > len(current) {
+		return false
+	}
+	for i := range previous {
+		if current[i] != previous[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func copyRunesReuse(dst []rune, src []rune) []rune {
+	if len(src) == 0 {
+		return nil
+	}
+	if cap(dst) < len(src) {
+		dst = make([]rune, len(src))
+	} else {
+		dst = dst[:len(src)]
+	}
+	copy(dst, src)
+	return dst
 }
 
 func main() {
@@ -1025,10 +1135,10 @@ func main() {
 	flag.IntVar(&cfg.ContextRadius, "context-radius", 40, "line radius for file context highlighting")
 	flag.StringVar(&cfg.EditorCmd, "editor-cmd", "", "override open command, supports {file} {line} {col} {target}")
 	flag.BoolVar(&cfg.NoIgnore, "no-ignore", false, "disable rg ignore files (.gitignore/.ignore/.rgignore)")
-	flag.BoolVar(&cfg.NoTest, "no-test", false, "exclude common test directories and test filename patterns")
+	flag.BoolVar(&cfg.ExcludeTests, "exclude-tests", false, "exclude common test directories and test filename patterns")
 	flag.StringVar(&cfg.Theme, "theme", "nord", "color theme (for example: nord, dracula, monokai, github, solarized-dark)")
 	highlightContext := flag.String("highlight-context", string(HighlightContextSynthetic), "highlight mode: synthetic or file")
-	debounceMs := flag.Int("debounce-ms", 10, "query debounce in milliseconds")
+	debounceMs := flag.Int("debounce-ms", 100, "query debounce in milliseconds")
 	flag.Parse()
 	cfg.Debounce = time.Duration(*debounceMs) * time.Millisecond
 
@@ -1058,12 +1168,20 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	out, done := StartProducer(ctx, ProducerConfig{
-		Root:     cfg.Root,
-		Pattern:  cfg.Pattern,
-		NoIgnore: cfg.NoIgnore,
-		NoTest:   cfg.NoTest,
-	})
+	producerPattern := strings.TrimSpace(cfg.Pattern)
+	if producerPattern == "" {
+		producerPattern = defaultRGPattern
+	}
+
+	producerCfg := ProducerConfig{
+		Root:         cfg.Root,
+		Pattern:      producerPattern,
+		NoIgnore:     cfg.NoIgnore,
+		ExcludeTests: cfg.ExcludeTests,
+	}
+
+	cachedCandidates, cacheLoaded, cacheErr := LoadIndexCache(producerCfg)
+	out, done := StartProducer(ctx, producerCfg)
 
 	highlighter := NewHighlighter(HighlighterConfig{
 		CacheSize:     cfg.CacheSize,
@@ -1073,6 +1191,13 @@ func main() {
 		ContextRadius: cfg.ContextRadius,
 	})
 	m := newModel(cfg, out, done, highlighter)
+	m.producerCfg = producerCfg
+	if cacheErr != nil {
+		m.status = "index cache unavailable: " + cacheErr.Error()
+	}
+	if cacheLoaded {
+		m.useCachedIndex(cachedCandidates)
+	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {

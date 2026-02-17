@@ -377,25 +377,19 @@ func (h *Highlighter) normalizeRequest(req HighlightRequest) HighlightRequest {
 		req.Mode = h.defaultMode
 	}
 
-	if req.Mode != HighlightContextFile {
-		req.Mode = HighlightContextSynthetic
-		req.File = ""
-		req.Line = 0
-		return req
+	if req.Mode == HighlightContextFile {
+		req.File = filepath.Clean(strings.TrimSpace(req.File))
+		if req.File != "" && req.Line > 0 {
+			if !filepath.IsAbs(req.File) && h.root != "" {
+				req.File = filepath.Join(h.root, req.File)
+			}
+			return req
+		}
 	}
 
-	req.File = filepath.Clean(strings.TrimSpace(req.File))
-	if req.File == "" || req.Line <= 0 {
-		req.Mode = HighlightContextSynthetic
-		req.File = ""
-		req.Line = 0
-		return req
-	}
-
-	if !filepath.IsAbs(req.File) && h.root != "" {
-		req.File = filepath.Join(h.root, req.File)
-	}
-
+	req.Mode = HighlightContextSynthetic
+	req.File = ""
+	req.Line = 0
 	return req
 }
 
@@ -561,58 +555,89 @@ func projectSpansToDisplay(baseSpans []Span, sourceLine string, displayLine stri
 		return nil, true
 	}
 
-	sourceRunes := []rune(sourceLine)
 	displayRunes := []rune(displayLine)
 	if len(displayRunes) == 0 {
 		return nil, true
 	}
 
-	if displayLine == sourceLine {
-		return normalizeSpans(baseSpans, len(displayRunes)), true
-	}
+	normalizedSource, normalizedToSource := normalizeLineForDisplayRunes(sourceLine)
 
+	prefixLen := len(displayRunes)
+	hasEllipsis := false
 	if len(displayRunes) >= 3 && strings.HasSuffix(displayLine, "...") {
-		prefixLen := len(displayRunes) - 3
-		if prefixLen >= 0 && prefixLen <= len(sourceRunes) && runesEqual(displayRunes[:prefixLen], sourceRunes[:prefixLen]) {
-			clipped := clipSpans(baseSpans, prefixLen)
-			if prefixLen < len(displayRunes) {
-				clipped = append(clipped, Span{Start: prefixLen, End: len(displayRunes), Cat: TokenPlain})
-			}
-			return normalizeSpans(clipped, len(displayRunes)), true
+		hasEllipsis = true
+		prefixLen = len(displayRunes) - 3
+	}
+
+	if prefixLen > len(normalizedSource) {
+		return nil, false
+	}
+	if !runesEqual(displayRunes[:prefixLen], normalizedSource[:prefixLen]) {
+		return nil, false
+	}
+
+	projected := make([]Span, 0, len(baseSpans)+2)
+	appendSpan := func(start int, end int, cat TokenCategory) {
+		if end <= start {
+			return
 		}
+		if len(projected) > 0 {
+			last := &projected[len(projected)-1]
+			if last.End == start && last.Cat == cat {
+				last.End = end
+				return
+			}
+		}
+		projected = append(projected, Span{Start: start, End: end, Cat: cat})
 	}
 
-	if len(displayRunes) <= len(sourceRunes) && runesEqual(displayRunes, sourceRunes[:len(displayRunes)]) {
-		clipped := clipSpans(baseSpans, len(displayRunes))
-		return normalizeSpans(clipped, len(displayRunes)), true
+	spanIdx := 0
+	for i := 0; i < prefixLen; i++ {
+		srcIdx := normalizedToSource[i]
+		cat := TokenPlain
+		for spanIdx < len(baseSpans) && srcIdx >= baseSpans[spanIdx].End {
+			spanIdx++
+		}
+		if spanIdx < len(baseSpans) {
+			span := baseSpans[spanIdx]
+			if srcIdx >= span.Start && srcIdx < span.End {
+				cat = span.Cat
+			}
+		}
+		appendSpan(i, i+1, cat)
 	}
 
-	return nil, false
+	if hasEllipsis {
+		appendSpan(prefixLen, len(displayRunes), TokenPlain)
+	}
+
+	return normalizeSpans(projected, len(displayRunes)), true
 }
 
-func clipSpans(spans []Span, maxRune int) []Span {
-	if maxRune <= 0 {
-		return nil
-	}
-	out := make([]Span, 0, len(spans))
-	for _, span := range spans {
-		if span.Start >= maxRune {
+func normalizeLineForDisplayRunes(line string) ([]rune, []int) {
+	source := []rune(line)
+	out := make([]rune, 0, len(source))
+	indexMap := make([]int, 0, len(source))
+
+	for i, r := range source {
+		switch r {
+		case '\r':
 			continue
+		case '\n':
+			out = append(out, ' ')
+			indexMap = append(indexMap, i)
+		case '\t':
+			for j := 0; j < 4; j++ {
+				out = append(out, ' ')
+				indexMap = append(indexMap, i)
+			}
+		default:
+			out = append(out, r)
+			indexMap = append(indexMap, i)
 		}
-		start := span.Start
-		end := span.End
-		if start < 0 {
-			start = 0
-		}
-		if end > maxRune {
-			end = maxRune
-		}
-		if end <= start {
-			continue
-		}
-		out = append(out, Span{Start: start, End: end, Cat: span.Cat})
 	}
-	return out
+
+	return out, indexMap
 }
 
 func runesEqual(a []rune, b []rune) bool {
@@ -731,43 +756,27 @@ func classifyLeaf(lang LangID, node *sitter.Node, parentType string, grandType s
 }
 
 func isIdentifierNode(nodeType string) bool {
-	if nodeType == "identifier" || nodeType == "property_identifier" {
-		return true
-	}
-	return strings.HasSuffix(nodeType, "identifier") || strings.HasSuffix(nodeType, "name")
+	return nodeType == "identifier" || nodeType == "property_identifier" || strings.HasSuffix(nodeType, "identifier") || strings.HasSuffix(nodeType, "name")
 }
 
 func isFunctionContext(lang LangID, parentType string, grandType string) bool {
-	if strings.Contains(parentType, "function") || strings.Contains(parentType, "method") || strings.Contains(parentType, "call") {
-		return true
-	}
-	if strings.Contains(grandType, "function") || strings.Contains(grandType, "method") || strings.Contains(grandType, "call") {
+	if strings.Contains(parentType, "function") || strings.Contains(parentType, "method") || strings.Contains(parentType, "call") || strings.Contains(grandType, "function") || strings.Contains(grandType, "method") || strings.Contains(grandType, "call") {
 		return true
 	}
 
-	if set, ok := functionContextByLang[lang]; ok {
-		if set[parentType] || set[grandType] {
-			return true
-		}
+	if set, ok := functionContextByLang[lang]; ok && (set[parentType] || set[grandType]) {
+		return true
 	}
 	return false
 }
 
 func isTypeContext(lang LangID, parentType string, grandType string) bool {
-	if strings.Contains(parentType, "type") || strings.Contains(grandType, "type") {
-		return true
-	}
-	if strings.Contains(parentType, "class") || strings.Contains(parentType, "struct") || strings.Contains(parentType, "interface") || strings.Contains(parentType, "trait") {
-		return true
-	}
-	if strings.Contains(grandType, "class") || strings.Contains(grandType, "struct") || strings.Contains(grandType, "interface") || strings.Contains(grandType, "trait") {
+	if strings.Contains(parentType, "type") || strings.Contains(grandType, "type") || strings.Contains(parentType, "class") || strings.Contains(parentType, "struct") || strings.Contains(parentType, "interface") || strings.Contains(parentType, "trait") || strings.Contains(grandType, "class") || strings.Contains(grandType, "struct") || strings.Contains(grandType, "interface") || strings.Contains(grandType, "trait") {
 		return true
 	}
 
-	if set, ok := typeContextByLang[lang]; ok {
-		if set[parentType] || set[grandType] {
-			return true
-		}
+	if set, ok := typeContextByLang[lang]; ok && (set[parentType] || set[grandType]) {
+		return true
 	}
 	return false
 }
