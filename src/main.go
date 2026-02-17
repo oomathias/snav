@@ -307,7 +307,7 @@ func (m *model) applyFilter() {
 		selectedID = cand.ID
 	}
 
-	m.filtered = filterCandidatesWithRunes(m.candidates, m.queryRunes)
+	m.filtered = filterCandidates(m.candidates, m.query)
 	if len(m.filtered) == 0 {
 		m.cursor = 0
 		m.offset = 0

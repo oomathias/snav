@@ -15,7 +15,7 @@ import (
 	"unicode"
 )
 
-const defaultRGPattern = `^\s*(?:export\s+)?(?:async\s+)?(?:func|type|var|const|class|interface|enum|def|fn|struct|impl|trait|module|mod|let|protocol|extension)\b`
+const defaultRGPattern = `^\s*(?:(?:export|default|async|public|private|protected|internal|abstract|final|sealed|partial|static|inline)\s+)*(?:func|function|type|var|const|class|interface|enum|def|fn|struct|impl|trait|module|mod|let|protocol|extension|namespace)\b`
 
 type Candidate struct {
 	ID     int
@@ -173,7 +173,8 @@ func parseRGLine(line string) (file string, lineNo int, colNo int, text string, 
 }
 
 var keyRegexes = []*regexp.Regexp{
-	regexp.MustCompile(`^\s*(?:export\s+)?(?:async\s+)?(?:function|class|interface|type|enum)\s+([A-Za-z_$][A-Za-z0-9_$]*)`),
+	regexp.MustCompile(`^\s*(?:export\s+)?(?:inline\s+)?namespace\s+([A-Za-z_][A-Za-z0-9_]*(?:(?:::|\.)[A-Za-z_][A-Za-z0-9_]*)*)\b`),
+	regexp.MustCompile(`^\s*(?:(?:export|default|async|public|private|protected|internal|abstract|final|sealed|partial|static)\s+)*(?:function|class|interface|type|enum|record)\s+([A-Za-z_$][A-Za-z0-9_$]*)\b`),
 	regexp.MustCompile(`^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)`),
 	regexp.MustCompile(`^\s*func\s*(?:\([^)]*\)\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\(`),
 	regexp.MustCompile(`^\s*(?:type|var|const)\s+([A-Za-z_][A-Za-z0-9_]*)`),
@@ -218,11 +219,16 @@ type filteredCandidate struct {
 }
 
 func filterCandidates(candidates []Candidate, query string) []filteredCandidate {
-	return filterCandidatesWithRunes(candidates, lowerTrimRunes(query))
+	q := trimRunes(query)
+	return filterCandidatesWithQueryRunes(candidates, q, lowerRunes(q))
 }
 
 func filterCandidatesWithRunes(candidates []Candidate, q []rune) []filteredCandidate {
-	if len(q) == 0 {
+	return filterCandidatesWithQueryRunes(candidates, nil, q)
+}
+
+func filterCandidatesWithQueryRunes(candidates []Candidate, qRaw []rune, qLower []rune) []filteredCandidate {
+	if len(qLower) == 0 {
 		out := make([]filteredCandidate, len(candidates))
 		for i := range candidates {
 			out[i] = filteredCandidate{Index: i}
@@ -234,9 +240,9 @@ func filterCandidatesWithRunes(candidates []Candidate, q []rune) []filteredCandi
 	for i := range candidates {
 		cand := candidates[i]
 
-		keyScore, keyOK := fuzzyScore(cand.Key, q)
-		textScore, textOK := fuzzyScore(cand.Text, q)
-		pathScore, pathOK := fuzzyScore(cand.File, q)
+		keyScore, keyOK := fuzzyScore(cand.Key, qRaw, qLower)
+		textScore, textOK := fuzzyScore(cand.Text, qRaw, qLower)
+		pathScore, pathOK := fuzzyScore(cand.File, qRaw, qLower)
 
 		if !keyOK && !textOK && !pathOK {
 			continue
@@ -275,7 +281,7 @@ func filterCandidatesWithRunes(candidates []Candidate, q []rune) []filteredCandi
 	return out
 }
 
-func fuzzyScore(text string, queryLower []rune) (int, bool) {
+func fuzzyScore(text string, queryRaw []rune, queryLower []rune) (int, bool) {
 	if len(queryLower) == 0 {
 		return 0, true
 	}
@@ -286,6 +292,8 @@ func fuzzyScore(text string, queryLower []rune) (int, bool) {
 	runeIdx := 0
 	var prev rune
 	hasPrev := false
+	caseSensitive := len(queryRaw) == len(queryLower)
+	caseMatches := 0
 
 	for _, raw := range text {
 		r := unicode.ToLower(raw)
@@ -297,6 +305,10 @@ func fuzzyScore(text string, queryLower []rune) (int, bool) {
 			}
 			if last+1 == runeIdx {
 				bonus += 6
+			}
+			if caseSensitive && raw == queryRaw[qi] {
+				bonus += 4
+				caseMatches++
 			}
 
 			score += bonus
@@ -318,6 +330,9 @@ func fuzzyScore(text string, queryLower []rune) (int, bool) {
 	}
 	if runeIdx < 40 {
 		score += 40 - runeIdx
+	}
+	if caseMatches > 0 {
+		score += caseMatches * 3
 	}
 
 	return score, true
@@ -352,15 +367,26 @@ func fuzzyPositionsRunes(text string, queryLower []rune) []int {
 }
 
 func lowerTrimRunes(s string) []rune {
+	return lowerRunes(trimRunes(s))
+}
+
+func trimRunes(s string) []rune {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return nil
 	}
-	r := []rune(s)
-	for i := range r {
-		r[i] = unicode.ToLower(r[i])
+	return []rune(s)
+}
+
+func lowerRunes(r []rune) []rune {
+	if len(r) == 0 {
+		return nil
 	}
-	return r
+	out := make([]rune, len(r))
+	for i := range r {
+		out[i] = unicode.ToLower(r[i])
+	}
+	return out
 }
 
 var matcherStopWords = map[string]bool{
@@ -368,6 +394,10 @@ var matcherStopWords = map[string]bool{
 	"case": true, "break": true, "continue": true, "default": true,
 	"func": true, "type": true, "const": true, "var": true,
 	"class": true, "interface": true, "enum": true,
+	"namespace": true,
+	"public":    true, "private": true, "protected": true, "internal": true,
+	"abstract": true, "final": true, "sealed": true, "partial": true,
+	"static": true, "inline": true,
 	"def": true, "fn": true,
 }
 
