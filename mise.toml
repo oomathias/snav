@@ -22,9 +22,9 @@ description = "Build macOS arm64 snav binary"
 run = "GOOS=darwin GOARCH=arm64 go build -buildvcs=false -o snav ./src"
 
 [tasks.link]
-description = "Build macOS arm64 binary and install to /usr/local/bin"
+description = "Build macOS arm64 binary and install to ~/.local/bin"
 depends = ["build-macos-arm64"]
-run = "install -m 0755 snav /usr/local/bin/snav"
+run = "mkdir -p \"$HOME/.local/bin\" && install -m 0755 snav \"$HOME/.local/bin/snav\""
 
 [tasks.dev]
 description = "Run snav via go run"

@@ -132,6 +132,45 @@ Editor command examples:
 - Helix: `-editor-cmd "hx {file}:{line}:{col}"`
 - Vim: `-editor-cmd "vim +{line} {file}"`
 
+## Zed Setup
+
+`keymap.json` example (`~/.config/zed/keymap.json`):
+
+```json
+[
+  {
+    "context": "Workspace",
+    "bindings": {
+      "cmd-shift-t": [
+        "task::Spawn",
+        {
+          "task_name": "snav"
+        }
+      ]
+    }
+  }
+]
+```
+
+`tasks.json` example (`~/.config/zed/tasks.json`):
+
+```json
+[
+  {
+    "label": "snav",
+    "command": "snav",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "reveal_target": "center",
+    "hide": "always",
+    "shell": "system",
+    "show_summary": false,
+    "show_command": false
+  }
+]
+```
+
 ## Keybindings
 
 - `up/down`, `j/k` move selection

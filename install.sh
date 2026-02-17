@@ -107,7 +107,36 @@ install_binary() {
     exit 1
   fi
 
+  clear_macos_quarantine "$dst"
+
   printf "installed %s to %s\n" "$BIN_NAME" "$dst"
+}
+
+clear_macos_quarantine() {
+  local path="$1"
+
+  if [ "$OS" != "darwin" ]; then
+    return
+  fi
+  if ! command -v xattr >/dev/null 2>&1; then
+    printf "warning: xattr not found, cannot clear quarantine attribute\n" >&2
+    return
+  fi
+  if ! xattr -p com.apple.quarantine "$path" >/dev/null 2>&1; then
+    return
+  fi
+
+  if xattr -d com.apple.quarantine "$path" >/dev/null 2>&1; then
+    printf "removed quarantine attribute from %s\n" "$path"
+    return
+  fi
+
+  if command -v sudo >/dev/null 2>&1 && sudo xattr -d com.apple.quarantine "$path" >/dev/null 2>&1; then
+    printf "removed quarantine attribute from %s\n" "$path"
+    return
+  fi
+
+  printf "warning: failed to remove quarantine attribute from %s\n" "$path" >&2
 }
 
 need_cmd curl
