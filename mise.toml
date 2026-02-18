@@ -1,6 +1,7 @@
 [tools]
 go = "1.24"
 golangci-lint = "1.64.8"
+svu = "3.3.0"
 
 [tasks.fmt]
 description = "Format Go source files"
@@ -33,6 +34,38 @@ run = "go -C src test ./..."
 description = "Run CI quality gates"
 depends = ["fmt-check", "lint", "test"]
 run = "printf 'All CI checks passed.\n'"
+
+[tasks.release]
+description = "Create and push the next release tag (CI publishes artifacts)"
+depends = ["ci"]
+run = """
+set -eu
+
+git diff --quiet && git diff --cached --quiet || {
+  printf 'Working tree is dirty. Commit or stash changes before releasing.\n'
+  exit 1
+}
+
+git fetch --tags origin
+
+current="$(svu current --tag.prefix v --tag.mode all)"
+next="$(svu next --tag.prefix v --tag.mode all)"
+
+if [ "$next" = "$current" ]; then
+  printf 'No releasable commits found since %s (need feat/fix/breaking).\n' "$current"
+  exit 1
+fi
+
+if git rev-parse --verify "$next" >/dev/null 2>&1; then
+  printf 'Tag already exists locally: %s\n' "$next"
+  exit 1
+fi
+
+git tag -a "$next" -m "release: $next"
+git push origin "$next"
+
+printf 'Pushed %s. GitHub Actions release workflow should start now.\n' "$next"
+"""
 
 [tasks.bench]
 description = "Run benchmark suite"
