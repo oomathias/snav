@@ -180,9 +180,11 @@ fi
 [ "$expected" = "$actual" ] || abort "checksum mismatch for ${ARCHIVE}"
 
 if [ "$OS" = "windows" ]; then
-  member="$(unzip -Z1 "$archive_path" | awk -v f="$BIN_FILE" '$0 !~ /\/$/ && $0 ~ "(^|/)" f "$" {print; exit}')"
+  archive_members="$(unzip -Z1 "$archive_path")"
+  member="$(awk -v f="$BIN_FILE" '$0 !~ /\/$/ && $0 ~ "(^|/)" f "$" {print; exit}' <<<"$archive_members")"
 else
-  member="$(tar -tzf "$archive_path" | awk -v f="$BIN_FILE" '$0 !~ /\/$/ && $0 ~ "(^|/)" f "$" {print; exit}')"
+  archive_members="$(tar -tzf "$archive_path")"
+  member="$(awk -v f="$BIN_FILE" '$0 !~ /\/$/ && $0 ~ "(^|/)" f "$" {print; exit}' <<<"$archive_members")"
 fi
 
 [ -n "$member" ] || abort "binary not found in archive: ${BIN_FILE}"
