@@ -5,12 +5,13 @@ project_name: snav
 
 before:
   hooks:
-    - go mod tidy
-    - go test ./...
+    - go -C src mod tidy
+    - go -C src test ./...
 
 builds:
   - id: snav
-    main: ./src
+    main: .
+    dir: ./src
     binary: snav
     goos:
       - linux
@@ -57,6 +58,19 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
+
+notarize:
+  macos:
+    - enabled: '{{ isEnvSet "MACOS_SIGN_P12" }}'
+      ids:
+        - snav
+      sign:
+        certificate: "{{ .Env.MACOS_SIGN_P12 }}"
+        password: "{{ .Env.MACOS_SIGN_PASSWORD }}"
+      notarize:
+        issuer_id: "{{ .Env.MACOS_NOTARY_ISSUER_ID }}"
+        key_id: "{{ .Env.MACOS_NOTARY_KEY_ID }}"
+        key: "{{ .Env.MACOS_NOTARY_KEY }}"
 
 archives:
   - id: snav

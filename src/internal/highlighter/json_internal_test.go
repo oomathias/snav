@@ -1,4 +1,4 @@
-package main
+package highlighter
 
 import (
 	"testing"
@@ -20,7 +20,7 @@ func TestJSONTreeSitterHighlighting(t *testing.T) {
 		Mode: HighlightContextSynthetic,
 	}
 
-	spans := h.highlightWithParser(parser, req)
+	spans := h.HighlightWithParser(parser, req)
 	if len(spans) == 0 {
 		t.Fatalf("expected spans for JSON line")
 	}

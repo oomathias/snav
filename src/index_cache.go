@@ -6,6 +6,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+
+	"snav/internal/candidate"
 )
 
 const indexCacheVersion = 1
@@ -19,10 +21,10 @@ type diskIndexCache struct {
 	NoIgnore     bool
 	ExcludeTests bool
 	Excludes     []string
-	Candidates   []Candidate
+	Candidates   []candidate.Candidate
 }
 
-func LoadIndexCache(cfg ProducerConfig) ([]Candidate, bool, error) {
+func LoadIndexCache(cfg candidate.ProducerConfig) ([]candidate.Candidate, bool, error) {
 	path, err := indexCachePath()
 	if err != nil {
 		return nil, false, err
@@ -49,7 +51,7 @@ func LoadIndexCache(cfg ProducerConfig) ([]Candidate, bool, error) {
 	return disk.Candidates, true, nil
 }
 
-func SaveIndexCache(cfg ProducerConfig, candidates []Candidate) error {
+func SaveIndexCache(cfg candidate.ProducerConfig, candidates []candidate.Candidate) error {
 	path, err := indexCachePath()
 	if err != nil {
 		return err
@@ -98,7 +100,7 @@ func SaveIndexCache(cfg ProducerConfig, candidates []Candidate) error {
 	return nil
 }
 
-func indexCacheMatches(disk diskIndexCache, cfg ProducerConfig) bool {
+func indexCacheMatches(disk diskIndexCache, cfg candidate.ProducerConfig) bool {
 	if disk.Version != indexCacheVersion {
 		return false
 	}

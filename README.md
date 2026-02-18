@@ -25,14 +25,14 @@
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/oomathias/snav/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/oomathias/snav/main/install | bash
 ```
 
 Build from source:
 
 ```bash
-go build -buildvcs=false -o snav ./src
-./snav -root .
+mkdir -p bin && go -C src build -buildvcs=false -o ../bin/snav .
+./bin/snav -root .
 ```
 
 ## Requirements
@@ -40,6 +40,18 @@ go build -buildvcs=false -o snav ./src
 - Go 1.24+
 - ripgrep (`rg`)
 - C toolchain for Tree-sitter grammars (`clang` or `gcc`)
+
+## Development (mise)
+
+Use `mise` to keep local tooling and CI aligned.
+
+```bash
+mise install
+mise run fmt
+mise run lint
+mise run test
+mise run ci
+```
 
 ## Quick usage
 

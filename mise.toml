@@ -1,42 +1,67 @@
 [tools]
-go = "latest"
+go = "1.24"
+golangci-lint = "1.64.8"
 
 [tasks.fmt]
 description = "Format Go source files"
-run = "gofmt -w src/*.go"
+run = "gofmt -w ./src"
+
+[tasks.fmt-check]
+description = "Check Go source formatting"
+run = """
+out="$(gofmt -l ./src)"
+if [ -n "$out" ]; then
+  printf 'gofmt needed for:\n%s\n' "$out"
+  exit 1
+fi
+"""
+
+[tasks.vet]
+description = "Run go vet"
+run = "go -C src vet ./..."
+
+[tasks.lint]
+description = "Run lint checks"
+depends = ["vet"]
+run = "cd src && golangci-lint run ./..."
 
 [tasks.test]
 description = "Run all tests"
-run = "go test ./..."
+run = "go -C src test ./..."
+
+[tasks.ci]
+description = "Run CI quality gates"
+depends = ["fmt-check", "lint", "test"]
+run = "printf 'All CI checks passed.\n'"
 
 [tasks.bench]
 description = "Run benchmark suite"
-run = "go test ./src -bench . -benchmem"
+run = "go -C src test ./... -bench . -benchmem"
 
 [tasks.build]
 description = "Build local snav binary"
-run = "go build -buildvcs=false -o snav ./src"
+run = "mkdir -p bin && go -C src build -buildvcs=false -o ../bin/snav ."
 
 [tasks.build-macos-arm64]
 description = "Build macOS arm64 snav binary"
-run = "GOOS=darwin GOARCH=arm64 go build -buildvcs=false -o snav ./src"
+run = "mkdir -p bin && GOOS=darwin GOARCH=arm64 go -C src build -buildvcs=false -o ../bin/snav ."
 
 [tasks.link]
 description = "Build macOS arm64 binary and install to ~/.local/bin"
 depends = ["build-macos-arm64"]
-run = "mkdir -p \"$HOME/.local/bin\" && install -m 0755 snav \"$HOME/.local/bin/snav\""
+run = "mkdir -p \"$HOME/.local/bin\" && install -m 0755 bin/snav \"$HOME/.local/bin/snav\""
 
 [tasks.dev]
 description = "Run snav via go run"
 raw = true
-run = "go run ./src"
+run = "go -C src run ."
 
 [tasks.cli]
 description = "Build and run local binary (interactive)"
 depends = ["build"]
 raw = true
-run = "./snav"
+run = "./bin/snav"
 
 [tasks.clean]
 description = "Remove local build output"
-run = "rm -f snav"
+run = "rm -rf bin"

@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+
+	"snav/internal/candidate"
 )
 
 func llvmBenchRoot(b *testing.B) string {
@@ -23,19 +25,19 @@ func llvmBenchRoot(b *testing.B) string {
 	return root
 }
 
-func loadCandidatesForRoot(b *testing.B, root string) []Candidate {
+func loadCandidatesForRoot(b *testing.B, root string) []candidate.Candidate {
 	b.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	out, done := StartProducer(ctx, ProducerConfig{
+	out, done := candidate.StartProducer(ctx, candidate.ProducerConfig{
 		Root:         root,
-		Pattern:      defaultRGPattern,
+		Pattern:      candidate.DefaultRGPattern,
 		ExcludeTests: true,
 	})
 
-	candidates := make([]Candidate, 0, 200_000)
+	candidates := make([]candidate.Candidate, 0, 200_000)
 	for cand := range out {
 		candidates = append(candidates, cand)
 	}
@@ -79,7 +81,7 @@ func BenchmarkLLVMFilterQueries(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		matches := filterCandidates(candidates, queries[i%len(queries)])
+		matches := candidate.FilterCandidates(candidates, queries[i%len(queries)])
 		if len(matches) == 0 {
 			b.Fatalf("query %q returned zero matches", queries[i%len(queries)])
 		}
@@ -105,17 +107,17 @@ func BenchmarkLLVMFilterTypeahead(b *testing.B) {
 	rawQueries := make([][]rune, len(queries))
 	lowerQueries := make([][]rune, len(queries))
 	for i := range queries {
-		rawQueries[i] = trimRunes(queries[i])
-		lowerQueries[i] = lowerRunes(rawQueries[i])
+		rawQueries[i] = candidate.TrimRunes(queries[i])
+		lowerQueries[i] = candidate.LowerRunes(rawQueries[i])
 	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		matches := filterCandidatesWithQueryRunes(candidates, rawQueries[0], lowerQueries[0])
+		matches := candidate.FilterCandidatesWithQueryRunes(candidates, rawQueries[0], lowerQueries[0])
 		for j := 1; j < len(rawQueries); j++ {
-			matches = filterCandidatesSubsetWithQueryRunes(candidates, matches, rawQueries[j], lowerQueries[j])
+			matches = candidate.FilterCandidatesSubsetWithQueryRunes(candidates, matches, rawQueries[j], lowerQueries[j])
 		}
 		if len(matches) == 0 {
 			b.Fatalf("typeahead sequence returned zero matches")
@@ -142,17 +144,17 @@ func BenchmarkLLVMFilterTypeaheadFull(b *testing.B) {
 	rawQueries := make([][]rune, len(queries))
 	lowerQueries := make([][]rune, len(queries))
 	for i := range queries {
-		rawQueries[i] = trimRunes(queries[i])
-		lowerQueries[i] = lowerRunes(rawQueries[i])
+		rawQueries[i] = candidate.TrimRunes(queries[i])
+		lowerQueries[i] = candidate.LowerRunes(rawQueries[i])
 	}
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		var matches []filteredCandidate
+		var matches []candidate.FilteredCandidate
 		for j := range rawQueries {
-			matches = filterCandidatesWithQueryRunes(candidates, rawQueries[j], lowerQueries[j])
+			matches = candidate.FilterCandidatesWithQueryRunes(candidates, rawQueries[j], lowerQueries[j])
 		}
 		if len(matches) == 0 {
 			b.Fatalf("typeahead full sequence returned zero matches")
@@ -163,19 +165,19 @@ func BenchmarkLLVMFilterTypeaheadFull(b *testing.B) {
 func BenchmarkLLVMFilterStreamingAppend(b *testing.B) {
 	root := llvmBenchRoot(b)
 	candidates := loadCandidatesForRoot(b, root)
-	qRaw := trimRunes("llvmcontext")
-	qLower := lowerRunes(qRaw)
+	qRaw := candidate.TrimRunes("llvmcontext")
+	qLower := candidate.LowerRunes(qRaw)
 	const batchSize = 4_000
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		var matches []filteredCandidate
+		var matches []candidate.FilteredCandidate
 		for start := 0; start < len(candidates); start += batchSize {
 			end := min(len(candidates), start+batchSize)
-			added := filterCandidatesRangeWithQueryRunes(candidates, start, end, qRaw, qLower)
-			matches = mergeFilteredCandidates(candidates, matches, added)
+			added := candidate.FilterCandidatesRangeWithQueryRunes(candidates, start, end, qRaw, qLower)
+			matches = candidate.MergeFilteredCandidates(candidates, matches, added)
 		}
 		if len(matches) == 0 {
 			b.Fatalf("streaming append sequence returned zero matches")
@@ -186,17 +188,17 @@ func BenchmarkLLVMFilterStreamingAppend(b *testing.B) {
 func BenchmarkLLVMFilterStreamingFullRescan(b *testing.B) {
 	root := llvmBenchRoot(b)
 	candidates := loadCandidatesForRoot(b, root)
-	qRaw := trimRunes("llvmcontext")
-	qLower := lowerRunes(qRaw)
+	qRaw := candidate.TrimRunes("llvmcontext")
+	qLower := candidate.LowerRunes(qRaw)
 	const batchSize = 4_000
 
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		var matches []filteredCandidate
+		var matches []candidate.FilteredCandidate
 		for end := batchSize; end < len(candidates); end += batchSize {
-			matches = filterCandidatesWithQueryRunes(candidates[:end], qRaw, qLower)
+			matches = candidate.FilterCandidatesWithQueryRunes(candidates[:end], qRaw, qLower)
 		}
 		if len(matches) == 0 {
 			b.Fatalf("streaming full-rescan sequence returned zero matches")

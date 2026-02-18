@@ -4,6 +4,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"snav/internal/candidate"
 )
 
 func withIndexCachePath(t *testing.T, path string) {
@@ -19,16 +21,16 @@ func TestIndexCacheRoundTrip(t *testing.T) {
 	cachePath := filepath.Join(t.TempDir(), "last_index.gob")
 	withIndexCachePath(t, cachePath)
 
-	cfg := ProducerConfig{
+	cfg := candidate.ProducerConfig{
 		Root:         "/repo/project",
-		Pattern:      defaultRGPattern,
+		Pattern:      candidate.DefaultRGPattern,
 		NoIgnore:     false,
 		ExcludeTests: true,
 		Excludes:     []string{"vendor/**"},
 	}
-	candidates := []Candidate{
-		{ID: 1, File: "a.go", Line: 10, Col: 2, Text: "func A() {}", Key: "A", LangID: LangGo},
-		{ID: 2, File: "b.ts", Line: 5, Col: 1, Text: "export const b = 1", Key: "b", LangID: LangTypeScript},
+	candidates := []candidate.Candidate{
+		{ID: 1, File: "a.go", Line: 10, Col: 2, Text: "func A() {}", Key: "A", LangID: candidate.LangGo},
+		{ID: 2, File: "b.ts", Line: 5, Col: 1, Text: "export const b = 1", Key: "b", LangID: candidate.LangTypeScript},
 	}
 
 	if err := SaveIndexCache(cfg, candidates); err != nil {
@@ -51,13 +53,13 @@ func TestIndexCacheOnlyKeepsLastIndex(t *testing.T) {
 	cachePath := filepath.Join(t.TempDir(), "last_index.gob")
 	withIndexCachePath(t, cachePath)
 
-	cfgA := ProducerConfig{Root: "/repo/a", Pattern: defaultRGPattern}
-	cfgB := ProducerConfig{Root: "/repo/b", Pattern: defaultRGPattern}
+	cfgA := candidate.ProducerConfig{Root: "/repo/a", Pattern: candidate.DefaultRGPattern}
+	cfgB := candidate.ProducerConfig{Root: "/repo/b", Pattern: candidate.DefaultRGPattern}
 
-	if err := SaveIndexCache(cfgA, []Candidate{{ID: 1, File: "a.go", Key: "A"}}); err != nil {
+	if err := SaveIndexCache(cfgA, []candidate.Candidate{{ID: 1, File: "a.go", Key: "A"}}); err != nil {
 		t.Fatalf("SaveIndexCache A failed: %v", err)
 	}
-	if err := SaveIndexCache(cfgB, []Candidate{{ID: 1, File: "b.go", Key: "B"}}); err != nil {
+	if err := SaveIndexCache(cfgB, []candidate.Candidate{{ID: 1, File: "b.go", Key: "B"}}); err != nil {
 		t.Fatalf("SaveIndexCache B failed: %v", err)
 	}
 
