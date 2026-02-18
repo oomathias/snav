@@ -75,25 +75,15 @@ run = "go -C src test ./... -bench . -benchmem"
 description = "Build local snav binary"
 run = "mkdir -p bin && go -C src build -buildvcs=false -o ../bin/snav ."
 
-[tasks.build-macos-arm64]
-description = "Build macOS arm64 snav binary"
-run = "mkdir -p bin && GOOS=darwin GOARCH=arm64 go -C src build -buildvcs=false -o ../bin/snav ."
-
 [tasks.link]
 description = "Build macOS arm64 binary and install to ~/.local/bin"
-depends = ["build-macos-arm64"]
+depends = ["build"]
 run = "mkdir -p \"$HOME/.local/bin\" && install -m 0755 bin/snav \"$HOME/.local/bin/snav\""
 
-[tasks.dev]
+[tasks.snav]
 description = "Run snav via go run"
 raw = true
 run = "go -C src run ."
-
-[tasks.cli]
-description = "Build and run local binary (interactive)"
-depends = ["build"]
-raw = true
-run = "./bin/snav"
 
 [tasks.clean]
 description = "Remove local build output"
