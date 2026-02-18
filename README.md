@@ -34,7 +34,7 @@ Type a query, pick a result, and open the exact `file:line:col`.
 ### 2) Install `snav`
 
 ```bash
-curl --fail --silent --show-error --location https://raw.githubusercontent.com/oomathias/snav/main/install | bash
+curl -fsSL https://raw.githubusercontent.com/oomathias/snav/main/install | bash
 ```
 
 Default install path: `/usr/local/bin`.
@@ -42,8 +42,31 @@ Default install path: `/usr/local/bin`.
 Optional local install path:
 
 ```bash
-SNAV_INSTALL_DIR="$HOME/.local/bin" curl --fail --silent --show-error --location https://raw.githubusercontent.com/oomathias/snav/main/install | bash
+SNAV_INSTALL_DIR="$HOME/.local/bin" curl -fsSL https://raw.githubusercontent.com/oomathias/snav/main/install | bash
 ```
+
+## Terminal usage
+
+```bash
+snav --root .
+```
+
+Keys:
+
+- Type to filter symbols
+- `j/k` or arrows: move
+- `tab`: toggle preview
+- `enter`: open selected result
+- `y`: copy `path:line:col`
+- `esc` or `ctrl+c`: quit
+
+## Common flags
+
+- `--exclude-tests`: ignore common test files/directories
+- `--no-ignore`: include files ignored by `.gitignore`, `.ignore`, `.rgignore`
+- `--theme github`: set color theme
+- `--highlight-context synthetic`: use line-only highlighting
+- `--editor-cmd "code --goto {target}"`: custom open command
 
 ## Zed setup
 
@@ -94,29 +117,6 @@ SNAV_INSTALL_DIR="$HOME/.local/bin" curl --fail --silent --show-error --location
 - Type to filter symbols
 - Move with `j/k` or arrows
 - Press `enter` to open
-
-## Terminal usage
-
-```bash
-snav --root .
-```
-
-Keys:
-
-- Type to filter symbols
-- `j/k` or arrows: move
-- `tab`: toggle preview
-- `enter`: open selected result
-- `y`: copy `path:line:col`
-- `esc` or `ctrl+c`: quit
-
-## Common flags
-
-- `--exclude-tests`: ignore common test files/directories
-- `--no-ignore`: include files ignored by `.gitignore`, `.ignore`, `.rgignore`
-- `--theme github`: set color theme
-- `--highlight-context synthetic`: use line-only highlighting
-- `--editor-cmd "code --goto {target}"`: custom open command
 
 ## Cache
 
