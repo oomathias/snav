@@ -9,8 +9,10 @@ BIN_NAME="snav"
 # Supported env vars:
 # - SNAV_VERSION: release tag to install (default: latest)
 # - SNAV_INSTALL_DIR: destination directory (default: /usr/local/bin)
+# - SNAV_REQUIRE_SIGNATURE: signature mode (auto, 0, or 1; default: auto)
 VERSION="${SNAV_VERSION:-latest}"
 INSTALL_DIR="${SNAV_INSTALL_DIR:-/usr/local/bin}"
+REQUIRE_SIGNATURE="${SNAV_REQUIRE_SIGNATURE:-auto}"
 
 abort() {
   printf "%s\n" "$1" >&2
@@ -31,6 +33,18 @@ download() {
   esac
 
   curl --fail --show-error --silent --location --proto '=https' --tlsv1.2 --retry 3 --retry-delay 1 "$url" -o "$out"
+}
+
+download_optional() {
+  local url="$1"
+  local out="$2"
+
+  case "$url" in
+    https://*) ;;
+    *) abort "refusing non-https URL: $url" ;;
+  esac
+
+  curl --fail --silent --location --proto '=https' --tlsv1.2 --retry 3 --retry-delay 1 "$url" -o "$out"
 }
 
 safe_member_path() {
@@ -63,6 +77,18 @@ case "$VERSION" in
   latest) ;;
   ""|*[!A-Za-z0-9._+-]*) abort "invalid SNAV_VERSION: $VERSION" ;;
   *) ;;
+esac
+
+case "$REQUIRE_SIGNATURE" in
+  auto)
+    if command -v cosign >/dev/null 2>&1; then
+      REQUIRE_SIGNATURE="1"
+    else
+      REQUIRE_SIGNATURE="0"
+    fi
+    ;;
+  0|1) ;;
+  *) abort "invalid SNAV_REQUIRE_SIGNATURE: $REQUIRE_SIGNATURE (expected auto, 0, or 1)" ;;
 esac
 
 if [ -z "$INSTALL_DIR" ]; then
@@ -105,6 +131,7 @@ trap 'rm -rf "$tmpdir"' EXIT
 
 archive_path="${tmpdir}/${ARCHIVE}"
 checksum_path="${tmpdir}/checksums.txt"
+checksum_bundle_path="${tmpdir}/checksums.txt.sigstore.json"
 binary_path="${tmpdir}/${BIN_FILE}"
 
 printf "downloading %s\n" "$ARCHIVE"
@@ -112,6 +139,26 @@ download "${BASE_URL}/${ARCHIVE}" "$archive_path"
 
 printf "downloading checksums.txt\n"
 download "${BASE_URL}/checksums.txt" "$checksum_path"
+
+printf "downloading checksums.txt.sigstore.json\n"
+if download_optional "${BASE_URL}/checksums.txt.sigstore.json" "$checksum_bundle_path"; then
+  if command -v cosign >/dev/null 2>&1; then
+    printf "verifying checksums signature\n"
+    cosign verify-blob \
+      --bundle "$checksum_bundle_path" \
+      --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+      --certificate-identity "https://github.com/${REPO}/.github/workflows/release.yml@refs/tags/${TAG}" \
+      "$checksum_path" >/dev/null 2>&1 || abort "checksums signature verification failed"
+  elif [ "$REQUIRE_SIGNATURE" = "1" ]; then
+    abort "cosign is required for signature verification (install cosign or set SNAV_REQUIRE_SIGNATURE=0)"
+  else
+    printf "warning: cosign not found; skipping checksums signature verification\n" >&2
+  fi
+elif [ "$REQUIRE_SIGNATURE" = "1" ]; then
+  abort "checksums signature not available for ${TAG}"
+else
+  printf "warning: checksums signature not available for ${TAG}; continuing with unsigned checksum\n" >&2
+fi
 
 expected="$(awk -v name="$ARCHIVE" '$2==name || $2=="*"name || $NF==name || $NF=="*"name {print $1; exit}' "$checksum_path")"
 [ -n "$expected" ] || abort "checksum missing for ${ARCHIVE}"

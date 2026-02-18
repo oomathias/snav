@@ -45,6 +45,14 @@ Optional local install path:
 SNAV_INSTALL_DIR="$HOME/.local/bin" curl -fsSL https://raw.githubusercontent.com/oomathias/snav/main/install | bash
 ```
 
+By default, the installer auto-enforces signature verification when `cosign` is available.
+
+Optional: enforce signature verification explicitly (requires `cosign`):
+
+```bash
+SNAV_REQUIRE_SIGNATURE=1 curl -fsSL https://raw.githubusercontent.com/oomathias/snav/main/install | bash
+```
+
 ## Terminal usage
 
 ```bash
