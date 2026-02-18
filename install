@@ -112,6 +112,7 @@ if [ "$VERSION" = "latest" ]; then
 else
   TAG="$VERSION"
 fi
+ARCHIVE_VERSION="${TAG#v}"
 
 if [ "$OS" = "windows" ]; then
   need unzip
@@ -123,7 +124,7 @@ else
   BIN_FILE="$BIN_NAME"
 fi
 
-ARCHIVE="${BIN_NAME}_${TAG}_${OS}_${ARCH}.${EXT}"
+ARCHIVE="${BIN_NAME}_${ARCHIVE_VERSION}_${OS}_${ARCH}.${EXT}"
 BASE_URL="https://github.com/${REPO}/releases/download/${TAG}"
 
 tmpdir="$(mktemp -d)"
