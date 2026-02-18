@@ -1,8 +1,10 @@
 package candidate
 
 import (
+	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -45,27 +47,17 @@ func FilterCandidatesRangeWithQueryRunes(candidates []Candidate, start int, end 
 			out = append(out, item)
 		}
 	} else {
-		parts := make([][]FilteredCandidate, workers)
-		var wg sync.WaitGroup
-		for worker := 0; worker < workers; worker++ {
-			chunkStart := start + worker*n/workers
-			chunkEnd := start + (worker+1)*n/workers
-			wg.Add(1)
-			go func(slot int, chunkStart int, chunkEnd int) {
-				defer wg.Done()
-				local := make([]FilteredCandidate, 0, max(1, (chunkEnd-chunkStart)/4))
-				for i := chunkStart; i < chunkEnd; i++ {
-					item, ok := scoreCandidate(&candidates[i], int32(i), qRaw, qLower, caseSensitive)
-					if !ok {
-						continue
-					}
-					local = append(local, item)
+		out = filterCandidatesParallelChunks(workers, n, func(chunkStart int, chunkEnd int) []FilteredCandidate {
+			local := make([]FilteredCandidate, 0, max(1, (chunkEnd-chunkStart)/4))
+			for i := start + chunkStart; i < start+chunkEnd; i++ {
+				item, ok := scoreCandidate(&candidates[i], int32(i), qRaw, qLower, caseSensitive)
+				if !ok {
+					continue
 				}
-				parts[slot] = local
-			}(worker, chunkStart, chunkEnd)
-		}
-		wg.Wait()
-		out = flattenFilteredParts(parts)
+				local = append(local, item)
+			}
+			return local
+		})
 	}
 
 	sortFilteredCandidates(candidates, out)
@@ -131,9 +123,6 @@ func filterWorkerCount(n int) int {
 	if workers > maxUseful {
 		workers = maxUseful
 	}
-	if workers < 2 {
-		return 1
-	}
 
 	return workers
 }
@@ -167,54 +156,48 @@ func filterCandidatesSubsetSerial(candidates []Candidate, subset []FilteredCandi
 }
 
 func filterCandidatesParallel(candidates []Candidate, qRaw []rune, qLower []rune, caseSensitive bool, workers int) []FilteredCandidate {
-	parts := make([][]FilteredCandidate, workers)
-	var wg sync.WaitGroup
-
-	for worker := 0; worker < workers; worker++ {
-		start := worker * len(candidates) / workers
-		end := (worker + 1) * len(candidates) / workers
-		wg.Add(1)
-		go func(slot int, start int, end int) {
-			defer wg.Done()
-			local := make([]FilteredCandidate, 0, max(1, (end-start)/4))
-			for i := start; i < end; i++ {
-				item, ok := scoreCandidate(&candidates[i], int32(i), qRaw, qLower, caseSensitive)
-				if !ok {
-					continue
-				}
-				local = append(local, item)
+	return filterCandidatesParallelChunks(workers, len(candidates), func(start int, end int) []FilteredCandidate {
+		local := make([]FilteredCandidate, 0, max(1, (end-start)/4))
+		for i := start; i < end; i++ {
+			item, ok := scoreCandidate(&candidates[i], int32(i), qRaw, qLower, caseSensitive)
+			if !ok {
+				continue
 			}
-			parts[slot] = local
-		}(worker, start, end)
-	}
-
-	wg.Wait()
-	return flattenFilteredParts(parts)
+			local = append(local, item)
+		}
+		return local
+	})
 }
 
 func filterCandidatesSubsetParallel(candidates []Candidate, subset []FilteredCandidate, qRaw []rune, qLower []rune, caseSensitive bool, workers int) []FilteredCandidate {
+	return filterCandidatesParallelChunks(workers, len(subset), func(start int, end int) []FilteredCandidate {
+		local := make([]FilteredCandidate, 0, max(1, (end-start)/2))
+		for i := start; i < end; i++ {
+			idx := int(subset[i].Index)
+			if idx < 0 || idx >= len(candidates) {
+				continue
+			}
+			item, ok := scoreCandidate(&candidates[idx], subset[i].Index, qRaw, qLower, caseSensitive)
+			if !ok {
+				continue
+			}
+			local = append(local, item)
+		}
+		return local
+	})
+}
+
+func filterCandidatesParallelChunks(workers int, n int, filterChunk func(start int, end int) []FilteredCandidate) []FilteredCandidate {
 	parts := make([][]FilteredCandidate, workers)
 	var wg sync.WaitGroup
 
 	for worker := 0; worker < workers; worker++ {
-		start := worker * len(subset) / workers
-		end := (worker + 1) * len(subset) / workers
+		start := worker * n / workers
+		end := (worker + 1) * n / workers
 		wg.Add(1)
 		go func(slot int, start int, end int) {
 			defer wg.Done()
-			local := make([]FilteredCandidate, 0, max(1, (end-start)/2))
-			for i := start; i < end; i++ {
-				idx := int(subset[i].Index)
-				if idx < 0 || idx >= len(candidates) {
-					continue
-				}
-				item, ok := scoreCandidate(&candidates[idx], subset[i].Index, qRaw, qLower, caseSensitive)
-				if !ok {
-					continue
-				}
-				local = append(local, item)
-			}
-			parts[slot] = local
+			parts[slot] = filterChunk(start, end)
 		}(worker, start, end)
 	}
 
@@ -283,9 +266,17 @@ func MergeFilteredCandidates(candidates []Candidate, left []FilteredCandidate, r
 }
 
 func scoreCandidate(cand *Candidate, index int32, qRaw []rune, qLower []rune, caseSensitive bool) (FilteredCandidate, bool) {
-	keyScore, keyOK := fuzzyScore(cand.Key, qRaw, qLower, caseSensitive)
-	textScore, textOK := fuzzyScore(cand.Text, qRaw, qLower, caseSensitive)
-	pathScore, pathOK := fuzzyScore(cand.File, qRaw, qLower, caseSensitive)
+	keyScore, _, keyOK := fuzzyScore(cand.Key, qRaw, qLower, caseSensitive)
+	textScore, textSpan, textOK := fuzzyScore(cand.Text, qRaw, qLower, caseSensitive)
+	pathScore, pathSpan, pathOK := fuzzyScore(cand.File, qRaw, qLower, caseSensitive)
+
+	queryLen := nonSpaceRuneCount(qLower)
+	if textOK && rejectLooseFuzzyMatch(textScore, textSpan, queryLen) {
+		textOK = false
+	}
+	if pathOK && rejectLooseFuzzyMatch(pathScore, pathSpan, queryLen) {
+		pathOK = false
+	}
 
 	if !keyOK && !textOK && !pathOK {
 		return FilteredCandidate{}, false
@@ -306,7 +297,36 @@ func scoreCandidate(cand *Candidate, index int32, qRaw []rune, qLower []rune, ca
 		score += 80
 	}
 
-	return FilteredCandidate{Index: index, Score: score}, true
+	item := FilteredCandidate{Index: index, Score: score}
+	if pathOK && !textOK && (!keyOK || keyLooksLikeFilename(cand)) {
+		item.OpenLine = 1
+		item.OpenCol = 1
+	}
+
+	return item, true
+}
+
+func rejectLooseFuzzyMatch(score int, span int, queryLen int) bool {
+	if queryLen <= 1 || span <= 0 {
+		return false
+	}
+	if span <= queryLen*5 {
+		return false
+	}
+	return score < queryLen*4
+}
+
+func keyLooksLikeFilename(cand *Candidate) bool {
+	if cand == nil {
+		return false
+	}
+	base := filepath.Base(cand.File)
+	ext := filepath.Ext(base)
+	base = strings.TrimSuffix(base, ext)
+	if base == "" || cand.Key == "" {
+		return false
+	}
+	return strings.EqualFold(base, cand.Key)
 }
 
 func maxInt32(a int32, b int32) int32 {

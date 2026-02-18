@@ -1,81 +1,76 @@
 # snav
 
 > [!WARNING]
-> **Experimental:** snav is under development and behavior may change between releases.
+> Experimental: behavior may change between releases.
 
 <p align="center">
-  <img src="./docs/snav.gif" alt="snav demo" />
+  <img src="./assets/snav.gif" alt="snav demo" />
 </p>
 
 <p align="center">
-  <strong>Interactive symbol finder for large codebases.</strong><br />
-  Fast symbol search, fuzzy ranking, and instant open in your editor.
+  <strong>Interactive symbol finder for codebases.</strong><br />
 </p>
 
-## Why snav
+## What is snav?
 
-- Teleport to any symbol in your codebase
-- Streams candidates with `rg --vimgrep --null --trim`
-- Warm-starts from the last index for the same root while rescanning
-- Ranks by symbol key first, then surrounding context
-- Renders syntax-highlighted source lines with optional preview
-- Supports themes and custom editor open commands
-- Runs on macOS, Linux, and Windows
+`snav` is a terminal UI for jumping to symbols in a repository.
+
+Type a query, pick a result, and open the exact `file:line:col`.
+
+## Why use it
+
+- Find functions, types, classes, constants, and more across the repo
+- Fuzzy-ranked results while you type
+- Syntax-highlighted preview before opening
+- Fast reopen with local cache
+- Works on macOS, Linux, and Windows
 
 ## Install
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/oomathias/snav/main/install | bash
-```
+### 1) Install `ripgrep`
 
-Build from source:
+`snav` requires `rg` on your `PATH`.
 
-```bash
-mkdir -p bin && go -C src build -buildvcs=false -o ../bin/snav .
-./bin/snav -root .
-```
-
-## Requirements
-
-- Go 1.24+
-- ripgrep (`rg`)
-- C toolchain for Tree-sitter grammars (`clang` or `gcc`)
-
-## Development (mise)
-
-Use `mise` to keep local tooling and CI aligned.
+### 2) Install `snav`
 
 ```bash
-mise install
-mise run fmt
-mise run lint
-mise run test
-mise run ci
+curl --fail --silent --show-error --location https://raw.githubusercontent.com/oomathias/snav/main/install | bash
 ```
 
-## Quick usage
+Default install path: `/usr/local/bin`.
+
+Optional local install path:
 
 ```bash
-snav -root .
+SNAV_INSTALL_DIR="$HOME/.local/bin" curl --fail --silent --show-error --location https://raw.githubusercontent.com/oomathias/snav/main/install | bash
 ```
-
-Useful flags:
-
-- `-theme github`
-- `-highlight-context file`
-- `-editor-cmd "code -g {target}"`
-- `-exclude-tests` and `-no-ignore`
-
-Index cache:
-
-- snav keeps a single on-disk index for the most recent root (`$XDG_CACHE_HOME/snav/last_index.gob` or platform cache dir)
-- when you rerun snav on the same root and options, it loads cached candidates immediately, then refreshes in background
 
 ## Zed setup
 
-This is the setup used in the GIF above.
+### 1) Add a task
 
-`keymap.json` example (`~/.config/zed/keymap.json`):
+`~/.config/zed/tasks.json`:
+
+```json
+[
+  {
+    "label": "snav",
+    "command": "snav --exclude-tests --root $ZED_WORKTREE_ROOT",
+    "use_new_terminal": false,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "reveal_target": "center",
+    "hide": "always",
+    "shell": "system",
+    "show_summary": false,
+    "show_command": false
+  }
+]
+```
+
+### 2) Add a keybinding
+
+`~/.config/zed/keymap.json`:
 
 ```json
 [
@@ -93,32 +88,40 @@ This is the setup used in the GIF above.
 ]
 ```
 
-`tasks.json` example (`~/.config/zed/tasks.json`):
+### 3) Use it
 
-```json
-[
-  {
-    "label": "snav",
-    "command": "snav --exclude-tests",
-    "use_new_terminal": false,
-    "allow_concurrent_runs": false,
-    "reveal": "always",
-    "reveal_target": "center",
-    "hide": "always",
-    "shell": "system",
-    "show_summary": false,
-    "show_command": false
-  }
-]
+- Press your keybinding
+- Type to filter symbols
+- Move with `j/k` or arrows
+- Press `enter` to open
+
+## Terminal usage
+
+```bash
+snav --root .
 ```
 
-## Keybindings
+Keys:
 
+- Type to filter symbols
 - `j/k` or arrows: move
 - `tab`: toggle preview
-- `enter`: open result
+- `enter`: open selected result
 - `y`: copy `path:line:col`
 - `esc` or `ctrl+c`: quit
+
+## Common flags
+
+- `--exclude-tests`: ignore common test files/directories
+- `--no-ignore`: include files ignored by `.gitignore`, `.ignore`, `.rgignore`
+- `--theme github`: set color theme
+- `--highlight-context synthetic`: use line-only highlighting
+- `--editor-cmd "code --goto {target}"`: custom open command
+
+## Cache
+
+`snav` keeps one local index cache for the most recent root and scan options.
+When settings match, cached results load first and a rescan refreshes in the background.
 
 ## License
 

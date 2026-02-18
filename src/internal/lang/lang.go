@@ -87,13 +87,12 @@ func Detect(path string) ID {
 }
 
 func DetectWithShebang(path string, firstLine string) ID {
-	id := Detect(path)
-	if id != Plain {
+	if id := Detect(path); id != Plain {
 		return id
 	}
 
 	if !strings.HasPrefix(firstLine, "#!") {
-		return id
+		return Plain
 	}
 	lower := strings.ToLower(firstLine)
 	switch {
@@ -104,6 +103,6 @@ func DetectWithShebang(path string, firstLine string) ID {
 	case strings.Contains(lower, "node"):
 		return JavaScript
 	default:
-		return id
+		return Plain
 	}
 }

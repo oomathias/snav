@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"snav/internal/lang"
 	"strings"
 )
 
@@ -80,7 +81,7 @@ func StartProducer(ctx context.Context, cfg ProducerConfig) (<-chan Candidate, <
 				Col:    col,
 				Text:   text,
 				Key:    ExtractKey(text, file),
-				LangID: detectLanguage(file),
+				LangID: lang.Detect(file),
 			}
 
 			select {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"snav/internal/candidate"
 )
@@ -110,15 +111,7 @@ func indexCacheMatches(disk diskIndexCache, cfg candidate.ProducerConfig) bool {
 	if disk.Pattern != cfg.Pattern || disk.NoIgnore != cfg.NoIgnore || disk.ExcludeTests != cfg.ExcludeTests {
 		return false
 	}
-	if len(disk.Excludes) != len(cfg.Excludes) {
-		return false
-	}
-	for i := range disk.Excludes {
-		if disk.Excludes[i] != cfg.Excludes[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(disk.Excludes, cfg.Excludes)
 }
 
 func indexCachePath() (string, error) {

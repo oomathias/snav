@@ -100,14 +100,14 @@ func LoadThemePalette(name string) (ThemePalette, error) {
 
 func normalizeThemeName(name string) string {
 	n := strings.ToLower(strings.TrimSpace(name))
-	aliases := map[string]string{
-		"solarized": "solarized-dark",
-		"one-dark":  "onedark",
+	switch n {
+	case "solarized":
+		return "solarized-dark"
+	case "one-dark":
+		return "onedark"
+	default:
+		return n
 	}
-	if mapped, ok := aliases[n]; ok {
-		return mapped
-	}
-	return n
 }
 
 func pickForeground(style *chroma.Style, fallback string, types ...chroma.TokenType) string {

@@ -5,13 +5,21 @@ import (
 	"unicode"
 )
 
-func fuzzyScore(text string, queryRaw []rune, queryLower []rune, caseSensitive bool) (int, bool) {
+func fuzzyScore(text string, queryRaw []rune, queryLower []rune, caseSensitive bool) (int, int, bool) {
 	if len(queryLower) == 0 {
-		return 0, true
+		return 0, 0, true
 	}
 
 	qi := 0
+	for qi < len(queryLower) && unicode.IsSpace(queryLower[qi]) {
+		qi++
+	}
+	if qi == len(queryLower) {
+		return 0, 0, true
+	}
+
 	last := -2
+	first := -1
 	score := 0
 	runeIdx := 0
 	var prev rune
@@ -29,14 +37,20 @@ func fuzzyScore(text string, queryRaw []rune, queryLower []rune, caseSensitive b
 			if last+1 == runeIdx {
 				bonus += 6
 			}
-			if caseSensitive && raw == queryRaw[qi] {
+			if caseSensitive && qi < len(queryRaw) && raw == queryRaw[qi] {
 				bonus += 4
 				caseMatches++
 			}
 
 			score += bonus
+			if first < 0 {
+				first = runeIdx
+			}
 			last = runeIdx
 			qi++
+			for qi < len(queryLower) && unicode.IsSpace(queryLower[qi]) {
+				qi++
+			}
 		}
 
 		prev = r
@@ -44,8 +58,11 @@ func fuzzyScore(text string, queryRaw []rune, queryLower []rune, caseSensitive b
 		runeIdx++
 	}
 
+	for qi < len(queryLower) && unicode.IsSpace(queryLower[qi]) {
+		qi++
+	}
 	if qi != len(queryLower) {
-		return 0, false
+		return 0, 0, false
 	}
 
 	if runeIdx > len(queryLower) {
@@ -58,20 +75,28 @@ func fuzzyScore(text string, queryRaw []rune, queryLower []rune, caseSensitive b
 		score += caseMatches * 3
 	}
 
-	return score, true
+	span := 0
+	if first >= 0 {
+		span = last - first + 1
+	}
+
+	return score, span, true
 }
 
 func FuzzyPositionsRunes(text string, queryLower []rune) []int {
-	return fuzzyPositionsRunes(text, queryLower)
-}
-
-func fuzzyPositionsRunes(text string, queryLower []rune) []int {
 	if len(queryLower) == 0 {
 		return nil
 	}
 
 	out := make([]int, 0, len(queryLower))
 	qi := 0
+	for qi < len(queryLower) && unicode.IsSpace(queryLower[qi]) {
+		qi++
+	}
+	if qi == len(queryLower) {
+		return nil
+	}
+
 	idx := 0
 	for _, raw := range text {
 		if qi >= len(queryLower) {
@@ -80,13 +105,29 @@ func fuzzyPositionsRunes(text string, queryLower []rune) []int {
 		if lowerRuneFast(raw) == queryLower[qi] {
 			out = append(out, idx)
 			qi++
+			for qi < len(queryLower) && unicode.IsSpace(queryLower[qi]) {
+				qi++
+			}
 		}
 		idx++
+	}
+	for qi < len(queryLower) && unicode.IsSpace(queryLower[qi]) {
+		qi++
 	}
 	if qi != len(queryLower) {
 		return nil
 	}
 	return out
+}
+
+func nonSpaceRuneCount(r []rune) int {
+	n := 0
+	for _, v := range r {
+		if !unicode.IsSpace(v) {
+			n++
+		}
+	}
+	return n
 }
 
 func TrimRunes(s string) []rune {

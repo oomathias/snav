@@ -1,6 +1,9 @@
 package highlighter
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 func buildSliceSource(lines []string, targetIndex int) ([]byte, int, int, bool) {
 	if targetIndex < 0 || targetIndex >= len(lines) {
@@ -33,9 +36,6 @@ func projectSpansToDisplay(baseSpans []Span, sourceLine string, displayLine stri
 	}
 
 	displayRunes := []rune(displayLine)
-	if len(displayRunes) == 0 {
-		return nil, true
-	}
 
 	normalizedSource, normalizedToSource := normalizeLineForDisplayRunes(sourceLine)
 
@@ -49,7 +49,7 @@ func projectSpansToDisplay(baseSpans []Span, sourceLine string, displayLine stri
 	if prefixLen > len(normalizedSource) {
 		return nil, false
 	}
-	if !runesEqual(displayRunes[:prefixLen], normalizedSource[:prefixLen]) {
+	if !slices.Equal(displayRunes[:prefixLen], normalizedSource[:prefixLen]) {
 		return nil, false
 	}
 
@@ -115,16 +115,4 @@ func normalizeLineForDisplayRunes(line string) ([]rune, []int) {
 	}
 
 	return out, indexMap
-}
-
-func runesEqual(a []rune, b []rune) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }

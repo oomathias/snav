@@ -41,8 +41,10 @@ type ProducerConfig struct {
 }
 
 type FilteredCandidate struct {
-	Index int32
-	Score int32
+	Index    int32
+	Score    int32
+	OpenLine int32
+	OpenCol  int32
 }
 
 var filterParallelThreshold = 20_000

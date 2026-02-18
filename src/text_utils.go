@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -60,15 +61,7 @@ func shouldUseIncrementalFilter(current []rune, previous []rune, candidateN int,
 	if candidateN != previousCandidateN {
 		return false
 	}
-	if len(previous) > len(current) {
-		return false
-	}
-	for i := range previous {
-		if current[i] != previous[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(current[:len(previous)], previous)
 }
 
 func copyRunesReuse(dst []rune, src []rune) []rune {
@@ -85,13 +78,5 @@ func copyRunesReuse(dst []rune, src []rune) []rune {
 }
 
 func runesEqual(a []rune, b []rune) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(a, b)
 }

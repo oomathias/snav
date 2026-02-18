@@ -22,33 +22,39 @@ func openLocation(path string, line int, col int, editorCmd string) error {
 		return exec.Command(name, args...).Start()
 	}
 
-	if _, err := exec.LookPath("zed"); err == nil {
-		cmd := exec.Command("zed", target)
-		return cmd.Start()
+	if found, err := startCommandIfAvailable("zed", target); found {
+		return err
 	}
 
 	switch runtime.GOOS {
 	case "darwin":
-		if _, err := exec.LookPath("open"); err == nil {
-			return exec.Command("open", path).Start()
+		if found, err := startCommandIfAvailable("open", path); found {
+			return err
 		}
 		return fmt.Errorf("zed and open are unavailable")
 	case "linux":
-		if _, err := exec.LookPath("xdg-open"); err == nil {
-			return exec.Command("xdg-open", path).Start()
+		if found, err := startCommandIfAvailable("xdg-open", path); found {
+			return err
 		}
 		return fmt.Errorf("zed and xdg-open are unavailable")
 	case "windows":
-		if _, err := exec.LookPath("explorer.exe"); err == nil {
-			return exec.Command("explorer.exe", path).Start()
+		if found, err := startCommandIfAvailable("explorer.exe", path); found {
+			return err
 		}
-		if _, err := exec.LookPath("cmd"); err == nil {
-			return exec.Command("cmd", "/C", "start", "", path).Start()
+		if found, err := startCommandIfAvailable("cmd", "/C", "start", "", path); found {
+			return err
 		}
 		return fmt.Errorf("zed and explorer are unavailable")
 	default:
 		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
+}
+
+func startCommandIfAvailable(name string, args ...string) (bool, error) {
+	if _, err := exec.LookPath(name); err != nil {
+		return false, nil
+	}
+	return true, exec.Command(name, args...).Start()
 }
 
 func buildEditorCommand(template string, file string, line int, col int, target string) (string, []string, error) {
@@ -137,14 +143,18 @@ func copyToClipboard(s string) error {
 	case "darwin":
 		return pipeStringToCommand(s, "pbcopy")
 	case "linux":
-		if _, err := exec.LookPath("wl-copy"); err == nil {
-			return pipeStringToCommand(s, "wl-copy")
+		clipboardCommands := []struct {
+			name string
+			args []string
+		}{
+			{name: "wl-copy"},
+			{name: "xclip", args: []string{"-selection", "clipboard"}},
+			{name: "xsel", args: []string{"--clipboard", "--input"}},
 		}
-		if _, err := exec.LookPath("xclip"); err == nil {
-			return pipeStringToCommand(s, "xclip", "-selection", "clipboard")
-		}
-		if _, err := exec.LookPath("xsel"); err == nil {
-			return pipeStringToCommand(s, "xsel", "--clipboard", "--input")
+		for _, cmd := range clipboardCommands {
+			if _, err := exec.LookPath(cmd.name); err == nil {
+				return pipeStringToCommand(s, cmd.name, cmd.args...)
+			}
 		}
 		return fmt.Errorf("no clipboard utility found (install wl-copy, xclip, or xsel)")
 	case "windows":

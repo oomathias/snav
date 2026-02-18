@@ -73,7 +73,10 @@ func (m model) renderList(width int, height int) string {
 
 	lines := make([]string, 0, height)
 	for i := start; i < end; i++ {
-		cand := m.candidates[int(m.filtered[i].Index)]
+		cand, ok := m.candidateForFiltered(i)
+		if !ok {
+			continue
+		}
 		lineA, lineB := m.renderCandidateLines(cand, i == m.cursor, width)
 		lines = append(lines, lineA)
 		if len(lines) < height {
@@ -91,16 +94,36 @@ func (m model) renderList(width int, height int) string {
 	return strings.Join(lines, "\n")
 }
 
+func (m model) candidateForFiltered(i int) (candidate.Candidate, bool) {
+	if i < 0 || i >= len(m.filtered) {
+		return candidate.Candidate{}, false
+	}
+
+	filtered := m.filtered[i]
+	idx := int(filtered.Index)
+	if idx < 0 || idx >= len(m.candidates) {
+		return candidate.Candidate{}, false
+	}
+
+	cand := m.candidates[idx]
+	if filtered.OpenLine > 0 {
+		cand.Line = int(filtered.OpenLine)
+		if filtered.OpenCol > 0 {
+			cand.Col = int(filtered.OpenCol)
+		} else {
+			cand.Col = 1
+		}
+	}
+
+	return cand, true
+}
+
 func (m model) renderCandidateLines(cand candidate.Candidate, selected bool, width int) (string, string) {
 	lineA := renderLocationLine(cand.File, cand.Line, cand.Col, width, selected, m.queryRunes)
 
 	text := truncateText(cand.Text, width)
 	req := m.highlightRequest(cand.LangID, cand.File, cand.Line, text)
-	spans, ok := m.highlighter.Lookup(req)
-	if !ok {
-		m.highlighter.Queue(req)
-		spans = []highlighter.Span{{Start: 0, End: utf8RuneCount(text), Cat: highlighter.TokenPlain}}
-	}
+	spans := m.lookupHighlightSpans(req, text)
 
 	lineB := renderTokenLine(text, spans, selected, m.queryRunes)
 	lineA = padRightANSI(lineA, width)
@@ -139,12 +162,8 @@ func (m model) renderPreview(width int, height int) string {
 		selected := lineNo == m.preview.SelectedLine
 		text := truncateText(m.preview.Lines[i], maxCode)
 		req := m.highlightRequest(m.preview.Lang, m.preview.File, lineNo, text)
-		spans, ok := m.highlighter.Lookup(req)
-		if !ok {
-			m.highlighter.Queue(req)
-			spans = []highlighter.Span{{Start: 0, End: utf8RuneCount(text), Cat: highlighter.TokenPlain}}
-		}
-		code := renderTokenLine(text, spans, selected, m.queryRunes)
+		spans := m.lookupHighlightSpans(req, text)
+		code := renderTokenLine(text, spans, selected, nil)
 		lines = append(lines, prefixRendered+padRightANSI(code, maxCode))
 	}
 
@@ -159,7 +178,7 @@ func (m model) selectedCandidate() (candidate.Candidate, bool) {
 	if len(m.filtered) == 0 || m.cursor < 0 || m.cursor >= len(m.filtered) {
 		return candidate.Candidate{}, false
 	}
-	return m.candidates[int(m.filtered[m.cursor].Index)], true
+	return m.candidateForFiltered(m.cursor)
 }
 
 func (m model) highlightRequest(lang highlighter.LangID, file string, line int, text string) highlighter.HighlightRequest {
@@ -173,6 +192,15 @@ func (m model) highlightRequest(lang highlighter.LangID, file string, line int, 
 		req.Line = line
 	}
 	return req
+}
+
+func (m model) lookupHighlightSpans(req highlighter.HighlightRequest, text string) []highlighter.Span {
+	spans, ok := m.highlighter.Lookup(req)
+	if ok {
+		return spans
+	}
+	m.highlighter.Queue(req)
+	return []highlighter.Span{{Start: 0, End: utf8RuneCount(text), Cat: highlighter.TokenPlain}}
 }
 
 func (m model) rowsPerPage() int {

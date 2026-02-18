@@ -87,6 +87,29 @@ type model struct {
 
 type tickMsg struct{}
 
+func printUsageWithLongFlags(fs *flag.FlagSet, program string) {
+	out := fs.Output()
+	fmt.Fprintf(out, "Usage of %s:\n", program)
+
+	var b strings.Builder
+	original := fs.Output()
+	fs.SetOutput(&b)
+	fs.PrintDefaults()
+	fs.SetOutput(original)
+
+	text := b.String()
+	if text == "" {
+		return
+	}
+
+	for _, line := range strings.Split(strings.TrimSuffix(text, "\n"), "\n") {
+		if strings.HasPrefix(line, "  -") {
+			line = "  --" + strings.TrimPrefix(line, "  -")
+		}
+		fmt.Fprintln(out, line)
+	}
+}
+
 func tickCmd() tea.Cmd {
 	return tea.Tick(16*time.Millisecond, func(time.Time) tea.Msg { return tickMsg{} })
 }
@@ -157,40 +180,38 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tickCmd()
 
 	case tea.KeyMsg:
+		returnAfterPreview := func() (tea.Model, tea.Cmd) {
+			m.updatePreview()
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "ctrl+c", "esc":
 			return m, tea.Quit
 		case "up", "k", "ctrl+p":
 			m.moveCursor(-1)
-			m.updatePreview()
-			return m, nil
+			return returnAfterPreview()
 		case "down", "j", "ctrl+n":
 			m.moveCursor(1)
-			m.updatePreview()
-			return m, nil
+			return returnAfterPreview()
 		case "pgup", "ctrl+u":
 			m.moveCursor(-m.rowsPerPage())
-			m.updatePreview()
-			return m, nil
+			return returnAfterPreview()
 		case "pgdown", "ctrl+d":
 			m.moveCursor(m.rowsPerPage())
-			m.updatePreview()
-			return m, nil
+			return returnAfterPreview()
 		case "home":
 			m.cursor = 0
-			m.updatePreview()
-			return m, nil
+			return returnAfterPreview()
 		case "end":
 			if len(m.filtered) > 0 {
 				m.cursor = len(m.filtered) - 1
 			}
-			m.updatePreview()
-			return m, nil
+			return returnAfterPreview()
 		case "tab":
 			m.previewEnabled = !m.previewEnabled
 			m.previewKey = ""
-			m.updatePreview()
-			return m, nil
+			return returnAfterPreview()
 		case "enter":
 			cand, ok := m.selectedCandidate()
 			if !ok {
@@ -240,12 +261,6 @@ func (m *model) moveCursor(delta int) {
 		return
 	}
 	m.cursor += delta
-	if m.cursor < 0 {
-		m.cursor = 0
-	}
-	if m.cursor >= len(m.filtered) {
-		m.cursor = len(m.filtered) - 1
-	}
 	m.ensureCursor()
 }
 
@@ -280,14 +295,17 @@ func (m *model) ensureCursor() {
 
 func (m *model) drainProducer(maxItems int) {
 	needFilter := false
+	defer func() {
+		if needFilter && !m.resetSelectionOnFilter {
+			m.scheduleFilter(0)
+		}
+	}()
+
 	for range maxItems {
 		select {
 		case cand, ok := <-m.producerOut:
 			if !ok {
 				m.producerOut = nil
-				if needFilter && !m.resetSelectionOnFilter {
-					m.scheduleFilter(0)
-				}
 				return
 			}
 			if m.rebuildFromScan {
@@ -301,15 +319,8 @@ func (m *model) drainProducer(maxItems int) {
 				needFilter = true
 			}
 		default:
-			if needFilter && !m.resetSelectionOnFilter {
-				m.scheduleFilter(0)
-			}
 			return
 		}
-	}
-
-	if needFilter && !m.resetSelectionOnFilter {
-		m.scheduleFilter(0)
 	}
 }
 
@@ -420,7 +431,10 @@ func (m *model) queueVisibleHighlights() {
 	start := max(0, m.offset-m.cfg.VisibleBuffer)
 	end := min(len(m.filtered), m.offset+m.rowsPerPage()+m.cfg.VisibleBuffer)
 	for i := start; i < end; i++ {
-		cand := m.candidates[int(m.filtered[i].Index)]
+		cand, ok := m.candidateForFiltered(i)
+		if !ok {
+			continue
+		}
 		text := truncateText(cand.Text, listW)
 		m.highlighter.Queue(m.highlightRequest(cand.LangID, cand.File, cand.Line, text))
 	}
@@ -516,19 +530,22 @@ func main() {
 	flag.BoolVar(&cfg.NoIgnore, "no-ignore", false, "disable rg ignore files (.gitignore/.ignore/.rgignore)")
 	flag.BoolVar(&cfg.ExcludeTests, "exclude-tests", false, "exclude common test directories and test filename patterns")
 	flag.StringVar(&cfg.Theme, "theme", "nord", "color theme (for example: nord, dracula, monokai, github, solarized-dark)")
-	highlightContext := flag.String("highlight-context", string(highlighter.HighlightContextSynthetic), "highlight mode: synthetic or file")
+	highlightContext := flag.String("highlight-context", string(highlighter.HighlightContextFile), "highlight mode: synthetic or file")
 	debounceMs := flag.Int("debounce-ms", 100, "query debounce in milliseconds")
+	flag.Usage = func() {
+		printUsageWithLongFlags(flag.CommandLine, os.Args[0])
+	}
 	flag.Parse()
 	cfg.Debounce = time.Duration(*debounceMs) * time.Millisecond
 
 	if err := SetTheme(cfg.Theme); err != nil {
-		fmt.Fprintf(os.Stderr, "invalid -theme: %v\n", err)
+		fmt.Fprintf(os.Stderr, "invalid --theme: %v\n", err)
 		os.Exit(1)
 	}
 
 	mode, err := highlighter.ParseHighlightContextMode(*highlightContext)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "invalid -highlight-context: %v\n", err)
+		fmt.Fprintf(os.Stderr, "invalid --highlight-context: %v\n", err)
 		os.Exit(1)
 	}
 	cfg.HighlightMode = mode

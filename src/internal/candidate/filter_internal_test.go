@@ -84,3 +84,86 @@ func TestFilterCandidatesRangeAndMergeMatchesFull(t *testing.T) {
 		t.Fatalf("range+merge filtering differs from full filtering: merged=%d full=%d", len(merged), len(full))
 	}
 }
+
+func TestFilterCandidatesRejectsLooseTextOnlyMatches(t *testing.T) {
+	candidates := []Candidate{
+		{
+			ID:   1,
+			File: "README.md",
+			Key:  "palette",
+			Text: "Type: pickForeground(style, baseFG, chroma.KeywordType, chroma.NameClass), PathDir: pickForeground(style, adjustTone(comment, 0))",
+		},
+		{
+			ID:   2,
+			File: "theme.go",
+			Key:  "TypeDir",
+			Text: "func TypeDir() {}",
+		},
+	}
+
+	res := FilterCandidates(candidates, "typedir")
+	if len(res) != 1 {
+		t.Fatalf("expected one match after loose-match rejection, got %d", len(res))
+	}
+	if got := candidates[int(res[0].Index)].Key; got != "TypeDir" {
+		t.Fatalf("expected TypeDir to remain, got %s", got)
+	}
+}
+
+func TestFilterCandidatesMatchesPathAcrossWhitespaceQuery(t *testing.T) {
+	candidates := []Candidate{
+		{
+			ID:   1,
+			File: "src/internal/highlighter/projection.go",
+			Key:  "projectSpansToDisplay",
+			Text: "func projectSpansToDisplay(baseSpans []Span, sourceLine string, displayLine string) ([]Span, bool) {",
+		},
+	}
+
+	res := FilterCandidates(candidates, "internal projection")
+	if len(res) != 1 {
+		t.Fatalf("expected whitespace query to match path, got %d", len(res))
+	}
+}
+
+func TestFilterCandidatesPathOnlyOpensFirstLine(t *testing.T) {
+	candidates := []Candidate{
+		{
+			ID:   1,
+			File: "src/internal/highlighter/projection.go",
+			Line: 83,
+			Col:  9,
+			Key:  "palette",
+			Text: "Type: pickForeground(style, baseFG, chroma.KeywordType, chroma.NameClass)",
+		},
+	}
+
+	res := FilterCandidates(candidates, "internal projection")
+	if len(res) != 1 {
+		t.Fatalf("expected one path-only match, got %d", len(res))
+	}
+	if res[0].OpenLine != 1 || res[0].OpenCol != 1 {
+		t.Fatalf("expected path-only match to open at 1:1, got %d:%d", res[0].OpenLine, res[0].OpenCol)
+	}
+}
+
+func TestFilterCandidatesFilenameKeyMatchOpensFirstLine(t *testing.T) {
+	candidates := []Candidate{
+		{
+			ID:   1,
+			File: "README.md",
+			Line: 18,
+			Col:  1,
+			Key:  "README",
+			Text: "Type a query, pick a result, and open the exact `file:line:col`.",
+		},
+	}
+
+	res := FilterCandidates(candidates, "README")
+	if len(res) != 1 {
+		t.Fatalf("expected one filename-key match, got %d", len(res))
+	}
+	if res[0].OpenLine != 1 || res[0].OpenCol != 1 {
+		t.Fatalf("expected filename-key match to open at 1:1, got %d:%d", res[0].OpenLine, res[0].OpenCol)
+	}
+}
