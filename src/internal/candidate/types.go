@@ -2,7 +2,7 @@ package candidate
 
 import "snav/internal/lang"
 
-const DefaultRGPattern = `^\s*(?:(?:export|default|async|public|private|protected|internal|abstract|final|sealed|partial|static|inline)\s+)*(?:func|function|type|var|const|class|interface|enum|def|fn|struct|impl|trait|module|mod|let|protocol|extension|namespace)\b`
+const DefaultRGPattern = `^\s*(?:(?:export|default|async|public|private|protected|internal|abstract|final|sealed|partial|static|inline|pub(?:\([^)]*\))?)\s+)*(?:func|function|type|var|const|class|interface|enum|record|def|fn|struct|impl|trait|module|mod|let|protocol|extension|namespace)\b`
 
 type LangID = lang.ID
 
@@ -23,13 +23,14 @@ const (
 )
 
 type Candidate struct {
-	ID     int
-	File   string
-	Line   int
-	Col    int
-	Text   string
-	Key    string
-	LangID LangID
+	ID            int
+	File          string
+	Line          int
+	Col           int
+	Text          string
+	Key           string
+	LangID        LangID
+	SemanticScore int16
 }
 
 type ProducerConfig struct {

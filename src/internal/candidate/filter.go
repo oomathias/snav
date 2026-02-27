@@ -244,6 +244,9 @@ func scoreCandidate(cand *Candidate, index int32, qRaw []rune, qLower []rune, ca
 	if pathOK {
 		score = maxInt32(score, int32(1200+pathScore-120))
 	}
+	if keyOK || textOK {
+		score += int32(candidateSemanticScore(cand))
+	}
 
 	if keyOK && textOK {
 		score += 80

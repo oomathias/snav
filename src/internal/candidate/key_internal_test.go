@@ -13,6 +13,8 @@ func TestDefaultRGPatternNamespaceAndClasses(t *testing.T) {
 		"inline namespace v1 {",
 		"public class SearchIndex : Base {",
 		"export default class QueryEngine {",
+		"pub struct GitPanel {",
+		"pub(crate) struct GitPanel {",
 	}
 
 	for _, tc := range matchCases {
@@ -44,6 +46,8 @@ func TestExtractKeyNamespaceAndClasses(t *testing.T) {
 		{name: "csharp class", text: "public class SearchIndex : Base {", want: "SearchIndex"},
 		{name: "default export class", text: "export default class QueryEngine {", want: "QueryEngine"},
 		{name: "final class", text: "final class Tokenizer extends Base {}", want: "Tokenizer"},
+		{name: "rust pub struct", text: "pub struct GitPanel {", want: "GitPanel"},
+		{name: "rust scoped pub struct", text: "pub(crate) struct GitPanel {", want: "GitPanel"},
 	}
 
 	for _, tt := range tests {

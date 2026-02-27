@@ -53,14 +53,17 @@ func StartProducer(ctx context.Context, cfg ProducerConfig) (<-chan Candidate, <
 				continue
 			}
 			id++
+			key := ExtractKey(text, file)
+			langID := lang.Detect(file)
 			cand := Candidate{
-				ID:     id,
-				File:   filepath.Clean(file),
-				Line:   line,
-				Col:    col,
-				Text:   text,
-				Key:    ExtractKey(text, file),
-				LangID: lang.Detect(file),
+				ID:            id,
+				File:          filepath.Clean(file),
+				Line:          line,
+				Col:           col,
+				Text:          text,
+				Key:           key,
+				LangID:        langID,
+				SemanticScore: computeSemanticScore(text),
 			}
 
 			select {

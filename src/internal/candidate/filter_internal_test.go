@@ -28,6 +28,21 @@ func TestFilterCandidatesPrefersMatchingCase(t *testing.T) {
 	}
 }
 
+func TestFilterCandidatesPrefersTypeDeclarationOverLocalVariable(t *testing.T) {
+	candidates := []Candidate{
+		{ID: 1, File: "cat.ts", Text: "let cat = new Cat()", Key: "cat"},
+		{ID: 2, File: "cat.ts", Text: "class Cat {}", Key: "Cat"},
+	}
+
+	res := FilterCandidates(candidates, "cat")
+	if len(res) < 2 {
+		t.Fatalf("expected at least 2 matches, got %d", len(res))
+	}
+	if got := candidates[int(res[0].Index)].Text; got != "class Cat {}" {
+		t.Fatalf("expected type declaration first, got %q", got)
+	}
+}
+
 func TestFilterCandidatesSubsetMatchesFull(t *testing.T) {
 	candidates := makeFixtureCandidates(8_000)
 
