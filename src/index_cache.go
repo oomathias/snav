@@ -11,7 +11,7 @@ import (
 	"snav/internal/candidate"
 )
 
-const indexCacheVersion = 1
+const indexCacheVersion = 2
 
 var indexCachePathOverride string
 

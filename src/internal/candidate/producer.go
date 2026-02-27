@@ -12,6 +12,12 @@ import (
 	"strings"
 )
 
+type candidateLocation struct {
+	file string
+	line int
+	col  int
+}
+
 func StartProducer(ctx context.Context, cfg ProducerConfig) (<-chan Candidate, <-chan error) {
 	out := make(chan Candidate, 4096)
 	done := make(chan error, 1)
@@ -24,74 +30,45 @@ func StartProducer(ctx context.Context, cfg ProducerConfig) (<-chan Candidate, <
 		if pattern == "" {
 			pattern = DefaultRGPattern
 		}
-		args := rgArgs(cfg, pattern)
-
-		cmd := exec.CommandContext(ctx, "rg", args...)
-		cmd.Dir = cfg.Root
-
-		stdout, err := cmd.StdoutPipe()
-		if err != nil {
-			done <- fmt.Errorf("open rg stdout: %w", err)
-			return
-		}
-
-		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
-
-		if err := cmd.Start(); err != nil {
-			done <- fmt.Errorf("start rg: %w", err)
-			return
-		}
-
-		scanner := bufio.NewScanner(stdout)
-		scanner.Buffer(make([]byte, 0, 128*1024), 8*1024*1024)
-
 		id := 0
-		for scanner.Scan() {
-			file, line, col, text, ok := parseRGVimgrepLine(scanner.Bytes())
-			if !ok {
-				continue
+		seen := make(map[candidateLocation]struct{}, 4096)
+		emitMatch := func(file string, line int, col int, text string) error {
+			cleanFile := filepath.Clean(file)
+			loc := candidateLocation{file: cleanFile, line: line, col: col}
+			if _, exists := seen[loc]; exists {
+				return nil
 			}
+			seen[loc] = struct{}{}
+
 			id++
-			key := ExtractKey(text, file)
-			langID := lang.Detect(file)
 			cand := Candidate{
 				ID:            id,
-				File:          filepath.Clean(file),
+				File:          cleanFile,
 				Line:          line,
 				Col:           col,
 				Text:          text,
-				Key:           key,
-				LangID:        langID,
+				Key:           ExtractKey(text, cleanFile),
+				LangID:        lang.Detect(cleanFile),
 				SemanticScore: computeSemanticScore(text),
 			}
 
 			select {
 			case out <- cand:
+				return nil
 			case <-ctx.Done():
-				done <- ctx.Err()
-				return
+				return ctx.Err()
 			}
 		}
 
-		if err := scanner.Err(); err != nil {
-			done <- fmt.Errorf("read rg output: %w", err)
+		if err := runRGPass(ctx, cfg.Root, rgArgs(cfg, pattern), emitMatch); err != nil {
+			done <- fmt.Errorf("search declarations: %w", err)
 			return
 		}
-
-		if err := cmd.Wait(); err != nil {
-			var exitErr *exec.ExitError
-			if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
-				done <- nil
+		if shouldIncludeConfigPass(pattern) {
+			if err := runRGPass(ctx, cfg.Root, rgConfigArgs(cfg), emitMatch); err != nil {
+				done <- fmt.Errorf("search config entries: %w", err)
 				return
 			}
-			msg := strings.TrimSpace(stderr.String())
-			if msg != "" {
-				done <- fmt.Errorf("rg failed: %s", msg)
-				return
-			}
-			done <- fmt.Errorf("rg failed: %w", err)
-			return
 		}
 
 		done <- nil
@@ -100,7 +77,75 @@ func StartProducer(ctx context.Context, cfg ProducerConfig) (<-chan Candidate, <
 	return out, done
 }
 
+func runRGPass(ctx context.Context, root string, args []string, onMatch func(file string, line int, col int, text string) error) error {
+	cmd := exec.CommandContext(ctx, "rg", args...)
+	cmd.Dir = root
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("open rg stdout: %w", err)
+	}
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start rg: %w", err)
+	}
+
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 128*1024), 8*1024*1024)
+
+	for scanner.Scan() {
+		file, line, col, text, ok := parseRGVimgrepLine(scanner.Bytes())
+		if !ok {
+			continue
+		}
+		if err := onMatch(file, line, col, text); err != nil {
+			_ = cmd.Wait()
+			return err
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("read rg output: %w", err)
+	}
+
+	if err := cmd.Wait(); err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			return nil
+		}
+		msg := strings.TrimSpace(stderr.String())
+		if msg != "" {
+			return fmt.Errorf("rg failed: %s", msg)
+		}
+		return fmt.Errorf("rg failed: %w", err)
+	}
+
+	return nil
+}
+
+func shouldIncludeConfigPass(pattern string) bool {
+	return strings.TrimSpace(pattern) == DefaultRGPattern
+}
+
 func rgArgs(cfg ProducerConfig, pattern string) []string {
+	args := rgBaseArgs(cfg)
+	args = append(args, pattern, ".")
+	return args
+}
+
+func rgConfigArgs(cfg ProducerConfig) []string {
+	args := rgBaseArgs(cfg)
+	for _, glob := range configIncludeGlobs {
+		args = append(args, "--glob", glob)
+	}
+	args = append(args, DefaultRGConfigPattern, ".")
+	return args
+}
+
+func rgBaseArgs(cfg ProducerConfig) []string {
 	args := []string{
 		"--vimgrep",
 		"--null",
@@ -120,8 +165,6 @@ func rgArgs(cfg ProducerConfig, pattern string) []string {
 			args = append(args, "--glob", "!"+glob)
 		}
 	}
-
-	args = append(args, pattern, ".")
 	return args
 }
 

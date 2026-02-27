@@ -115,3 +115,109 @@ func TestRGArgs(t *testing.T) {
 		}
 	})
 }
+
+func TestRGConfigArgs(t *testing.T) {
+	t.Run("defaults", func(t *testing.T) {
+		cfg := ProducerConfig{}
+		got := rgConfigArgs(cfg)
+		want := []string{
+			"--vimgrep",
+			"--null",
+			"--trim",
+			"--color", "never",
+			"--no-heading",
+			"--smart-case",
+			"--glob", "*.json",
+			"--glob", "*.jsonc",
+			"--glob", "*.json5",
+			"--glob", "*.yaml",
+			"--glob", "*.yml",
+			"--glob", "*.toml",
+			"--glob", "*.ini",
+			"--glob", ".env",
+			"--glob", ".env.*",
+			"--glob", ".envrc",
+			"--glob", "*.properties",
+			"--glob", "*.conf",
+			"--glob", "*.cfg",
+			"--glob", "*.cnf",
+			"--glob", "*.hcl",
+			"--glob", "*.tfvars",
+			DefaultRGConfigPattern,
+			".",
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("rgConfigArgs = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("flags", func(t *testing.T) {
+		cfg := ProducerConfig{
+			NoIgnore:     true,
+			Excludes:     []string{"a/**", "b/**"},
+			ExcludeTests: true,
+		}
+		got := rgConfigArgs(cfg)
+		want := []string{
+			"--vimgrep",
+			"--null",
+			"--trim",
+			"--color", "never",
+			"--no-heading",
+			"--smart-case",
+			"--no-ignore",
+			"--glob", "!a/**",
+			"--glob", "!b/**",
+			"--glob", "!test/**",
+			"--glob", "!tests/**",
+			"--glob", "!__tests__/**",
+			"--glob", "!spec/**",
+			"--glob", "!specs/**",
+			"--glob", "!**/test/**",
+			"--glob", "!**/tests/**",
+			"--glob", "!**/__tests__/**",
+			"--glob", "!**/spec/**",
+			"--glob", "!**/specs/**",
+			"--glob", "!*_test.*",
+			"--glob", "!*_spec.*",
+			"--glob", "!*.test.*",
+			"--glob", "!*.spec.*",
+			"--glob", "!test_*.py",
+			"--glob", "!**/*_test.*",
+			"--glob", "!**/*_spec.*",
+			"--glob", "!**/*.test.*",
+			"--glob", "!**/*.spec.*",
+			"--glob", "!**/test_*.py",
+			"--glob", "*.json",
+			"--glob", "*.jsonc",
+			"--glob", "*.json5",
+			"--glob", "*.yaml",
+			"--glob", "*.yml",
+			"--glob", "*.toml",
+			"--glob", "*.ini",
+			"--glob", ".env",
+			"--glob", ".env.*",
+			"--glob", ".envrc",
+			"--glob", "*.properties",
+			"--glob", "*.conf",
+			"--glob", "*.cfg",
+			"--glob", "*.cnf",
+			"--glob", "*.hcl",
+			"--glob", "*.tfvars",
+			DefaultRGConfigPattern,
+			".",
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("rgConfigArgs = %#v, want %#v", got, want)
+		}
+	})
+}
+
+func TestShouldIncludeConfigPass(t *testing.T) {
+	if !shouldIncludeConfigPass(DefaultRGPattern) {
+		t.Fatalf("default pattern should include config pass")
+	}
+	if shouldIncludeConfigPass("^foo$") {
+		t.Fatalf("custom pattern should not include config pass")
+	}
+}

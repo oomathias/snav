@@ -3,6 +3,7 @@ package candidate
 import "snav/internal/lang"
 
 const DefaultRGPattern = `^\s*(?:(?:export|default|async|public|private|protected|internal|abstract|final|sealed|partial|static|inline|pub(?:\([^)]*\))?)\s+)*(?:func|function|type|var|const|class|interface|enum|record|def|fn|struct|impl|trait|module|mod|let|protocol|extension|namespace)\b`
+const DefaultRGConfigPattern = `^\s*(?:\[\[[A-Za-z0-9_.:-]+\]\]\s*$|\[[A-Za-z0-9_.:-]+\]\s*$|"(?:\\.|[^"\\])+"\s*:|'[^']+'\s*:|(?:export\s+)?[A-Za-z0-9_.-]+\s*(?::|=)|[A-Za-z0-9_.-]+(?:\s+"(?:\\.|[^"\\])+"){0,2}\s*\{)`
 
 type LangID = lang.ID
 
@@ -72,4 +73,23 @@ var testExcludeGlobs = []string{
 	"**/*.test.*",
 	"**/*.spec.*",
 	"**/test_*.py",
+}
+
+var configIncludeGlobs = []string{
+	"*.json",
+	"*.jsonc",
+	"*.json5",
+	"*.yaml",
+	"*.yml",
+	"*.toml",
+	"*.ini",
+	".env",
+	".env.*",
+	".envrc",
+	"*.properties",
+	"*.conf",
+	"*.cfg",
+	"*.cnf",
+	"*.hcl",
+	"*.tfvars",
 }

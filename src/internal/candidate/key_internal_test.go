@@ -35,6 +35,41 @@ func TestDefaultRGPatternNamespaceAndClasses(t *testing.T) {
 	}
 }
 
+func TestDefaultRGConfigPatternMatchesConfigEntries(t *testing.T) {
+	re := regexp.MustCompile(DefaultRGConfigPattern)
+
+	matchCases := []string{
+		`"name": "snav",`,
+		"root: ./src",
+		"root = ./src",
+		"export APP_ENV=dev",
+		"[tool.mise]",
+		"[[plugins]]",
+		`resource "aws_instance" "web" {`,
+		`terraform {`,
+	}
+
+	for _, tc := range matchCases {
+		if !re.MatchString(tc) {
+			t.Fatalf("config pattern should match %q", tc)
+		}
+	}
+
+	nonMatchCases := []string{
+		"# comment",
+		"{",
+		"func main() {",
+		"resource aws_instance web {",
+		"return value",
+	}
+
+	for _, tc := range nonMatchCases {
+		if re.MatchString(tc) {
+			t.Fatalf("config pattern should not match %q", tc)
+		}
+	}
+}
+
 func TestExtractKeyNamespaceAndClasses(t *testing.T) {
 	tests := []struct {
 		name string
@@ -48,6 +83,15 @@ func TestExtractKeyNamespaceAndClasses(t *testing.T) {
 		{name: "final class", text: "final class Tokenizer extends Base {}", want: "Tokenizer"},
 		{name: "rust pub struct", text: "pub struct GitPanel {", want: "GitPanel"},
 		{name: "rust scoped pub struct", text: "pub(crate) struct GitPanel {", want: "GitPanel"},
+		{name: "json key", text: `"editor.fontSize": 14,`, want: "editor.fontSize"},
+		{name: "yaml key", text: "log-level: debug", want: "log-level"},
+		{name: "toml key", text: "log.level = \"debug\"", want: "log.level"},
+		{name: "ini section", text: "[database.production]", want: "database.production"},
+		{name: "toml array section", text: "[[inputs.http]]", want: "inputs.http"},
+		{name: "dotenv export", text: "export APP_ENV=dev", want: "APP_ENV"},
+		{name: "properties key", text: "log.level=debug", want: "log.level"},
+		{name: "hcl resource block", text: `resource "aws_instance" "web" {`, want: "aws_instance"},
+		{name: "hcl simple block", text: "terraform {", want: "terraform"},
 	}
 
 	for _, tt := range tests {
