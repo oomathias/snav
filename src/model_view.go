@@ -53,7 +53,7 @@ func (m model) renderHeader() string {
 
 func (m model) renderFooter() string {
 	footerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(appTheme.Muted))
-	text := "up/down move  pgup/pgdn jump  tab preview  y copy  enter open file  esc quit"
+	text := "up/down move  pgup/pgdn jump  tab preview  ctrl+space copy  enter open file  esc quit"
 	return footerStyle.Render(truncateText(text, m.width))
 }
 

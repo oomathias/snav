@@ -65,7 +65,7 @@ Keys:
 - `j/k` or arrows: move
 - `tab`: toggle preview
 - `enter`: open selected result
-- `y`: copy `path:line:col`
+- `ctrl+space`: copy `path:line:col`
 - `esc` or `ctrl+c`: quit
 
 ## Common flags

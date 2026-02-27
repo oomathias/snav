@@ -223,7 +223,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			return m, tea.Quit
-		case "y":
+		case "ctrl+@", "ctrl+space":
 			cand, ok := m.selectedCandidate()
 			if !ok {
 				return m, nil
