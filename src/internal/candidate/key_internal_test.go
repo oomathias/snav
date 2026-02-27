@@ -43,10 +43,13 @@ func TestDefaultRGConfigPatternMatchesConfigEntries(t *testing.T) {
 		"root: ./src",
 		"root = ./src",
 		"export APP_ENV=dev",
+		"- name: web",
 		"[tool.mise]",
 		"[[plugins]]",
 		`resource "aws_instance" "web" {`,
 		`terraform {`,
+		`<appSettings>`,
+		`<add key="ConnectionStrings__Main" value="dsn" />`,
 	}
 
 	for _, tc := range matchCases {
@@ -60,6 +63,8 @@ func TestDefaultRGConfigPatternMatchesConfigEntries(t *testing.T) {
 		"{",
 		"func main() {",
 		"resource aws_instance web {",
+		"- just text",
+		"</appSettings>",
 		"return value",
 	}
 
@@ -86,12 +91,16 @@ func TestExtractKeyNamespaceAndClasses(t *testing.T) {
 		{name: "json key", text: `"editor.fontSize": 14,`, want: "editor.fontSize"},
 		{name: "yaml key", text: "log-level: debug", want: "log-level"},
 		{name: "toml key", text: "log.level = \"debug\"", want: "log.level"},
+		{name: "yaml list key", text: "- name: web", want: "name"},
 		{name: "ini section", text: "[database.production]", want: "database.production"},
 		{name: "toml array section", text: "[[inputs.http]]", want: "inputs.http"},
 		{name: "dotenv export", text: "export APP_ENV=dev", want: "APP_ENV"},
 		{name: "properties key", text: "log.level=debug", want: "log.level"},
-		{name: "hcl resource block", text: `resource "aws_instance" "web" {`, want: "aws_instance"},
+		{name: "hcl resource block label", text: `resource "aws_instance" "web" {`, want: "web"},
+		{name: "hcl module block label", text: `module "network" {`, want: "network"},
 		{name: "hcl simple block", text: "terraform {", want: "terraform"},
+		{name: "xml key attr", text: `<add key="ConnectionStrings__Main" value="dsn" />`, want: "ConnectionStrings__Main"},
+		{name: "xml section tag", text: `<appSettings>`, want: "appSettings"},
 	}
 
 	for _, tt := range tests {

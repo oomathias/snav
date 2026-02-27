@@ -3,7 +3,7 @@ package candidate
 import "snav/internal/lang"
 
 const DefaultRGPattern = `^\s*(?:(?:export|default|async|public|private|protected|internal|abstract|final|sealed|partial|static|inline|pub(?:\([^)]*\))?)\s+)*(?:func|function|type|var|const|class|interface|enum|record|def|fn|struct|impl|trait|module|mod|let|protocol|extension|namespace)\b`
-const DefaultRGConfigPattern = `^\s*(?:\[\[[A-Za-z0-9_.:-]+\]\]\s*$|\[[A-Za-z0-9_.:-]+\]\s*$|"(?:\\.|[^"\\])+"\s*:|'[^']+'\s*:|(?:export\s+)?[A-Za-z0-9_.-]+\s*(?::|=)|[A-Za-z0-9_.-]+(?:\s+"(?:\\.|[^"\\])+"){0,2}\s*\{)`
+const DefaultRGConfigPattern = `^\s*(?:\[\[[A-Za-z0-9_.:-]+\]\]\s*$|\[[A-Za-z0-9_.:-]+\]\s*$|"(?:\\.|[^"\\])+"\s*:|'[^']+'\s*:|-\s*(?:"(?:\\.|[^"\\])+"|'[^']+'|[A-Za-z0-9_.-]+)\s*:|(?:export\s+)?[A-Za-z0-9_.-]+\s*(?::|=)|[A-Za-z0-9_.-]+(?:\s+"(?:\\.|[^"\\])+"){0,2}\s*\{|<\s*[A-Za-z_][A-Za-z0-9_.:-]*(?:\s|>|/>))`
 
 type LangID = lang.ID
 
@@ -90,6 +90,13 @@ var configIncludeGlobs = []string{
 	"*.conf",
 	"*.cfg",
 	"*.cnf",
+	"*.tf",
 	"*.hcl",
 	"*.tfvars",
+	"*.xml",
+	"*.plist",
+	"*.csproj",
+	"*.props",
+	"*.targets",
+	"*.config",
 }
