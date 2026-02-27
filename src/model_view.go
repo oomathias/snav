@@ -87,11 +87,7 @@ func (m model) renderList(width int, height int) string {
 		}
 	}
 
-	for len(lines) < height {
-		lines = append(lines, "")
-	}
-
-	return strings.Join(lines, "\n")
+	return strings.Join(padLines(lines, height), "\n")
 }
 
 func (m model) candidateForFiltered(i int) (candidate.Candidate, bool) {
@@ -123,7 +119,7 @@ func (m model) renderCandidateLines(cand candidate.Candidate, selected bool, wid
 
 	text := truncateText(cand.Text, width)
 	req := m.highlightRequest(cand.LangID, cand.File, cand.Line, text)
-	spans := m.lookupHighlightSpans(req, text)
+	spans := m.lookupHighlightSpans(req)
 
 	lineB := renderTokenLine(text, spans, selected, m.queryRunes)
 	lineA = padRightANSI(lineA, width)
@@ -162,22 +158,22 @@ func (m model) renderPreview(width int, height int) string {
 		selected := lineNo == m.preview.SelectedLine
 		text := truncateText(m.preview.Lines[i], maxCode)
 		req := m.highlightRequest(m.preview.Lang, m.preview.File, lineNo, text)
-		spans := m.lookupHighlightSpans(req, text)
+		spans := m.lookupHighlightSpans(req)
 		code := renderTokenLine(text, spans, selected, nil)
 		lines = append(lines, prefixRendered+padRightANSI(code, maxCode))
 	}
 
+	return lipgloss.NewStyle().Width(width).Height(height).Render(strings.Join(padLines(lines, height), "\n"))
+}
+
+func padLines(lines []string, height int) []string {
 	for len(lines) < height {
 		lines = append(lines, "")
 	}
-
-	return lipgloss.NewStyle().Width(width).Height(height).Render(strings.Join(lines, "\n"))
+	return lines
 }
 
 func (m model) selectedCandidate() (candidate.Candidate, bool) {
-	if len(m.filtered) == 0 || m.cursor < 0 || m.cursor >= len(m.filtered) {
-		return candidate.Candidate{}, false
-	}
 	return m.candidateForFiltered(m.cursor)
 }
 
@@ -194,13 +190,13 @@ func (m model) highlightRequest(lang highlighter.LangID, file string, line int, 
 	return req
 }
 
-func (m model) lookupHighlightSpans(req highlighter.HighlightRequest, text string) []highlighter.Span {
+func (m model) lookupHighlightSpans(req highlighter.HighlightRequest) []highlighter.Span {
 	spans, ok := m.highlighter.Lookup(req)
 	if ok {
 		return spans
 	}
 	m.highlighter.Queue(req)
-	return []highlighter.Span{{Start: 0, End: utf8RuneCount(text), Cat: highlighter.TokenPlain}}
+	return nil
 }
 
 func (m model) rowsPerPage() int {

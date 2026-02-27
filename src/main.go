@@ -7,11 +7,13 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
 	"snav/internal/candidate"
 	"snav/internal/highlighter"
+	"snav/internal/readfile"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -92,10 +94,9 @@ func printUsageWithLongFlags(fs *flag.FlagSet, program string) {
 	fmt.Fprintf(out, "Usage of %s:\n", program)
 
 	var b strings.Builder
-	original := fs.Output()
 	fs.SetOutput(&b)
 	fs.PrintDefaults()
-	fs.SetOutput(original)
+	fs.SetOutput(out)
 
 	text := b.String()
 	if text == "" {
@@ -255,19 +256,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) moveCursor(delta int) {
-	if len(m.filtered) == 0 {
-		m.cursor = 0
-		m.offset = 0
-		return
-	}
 	m.cursor += delta
 	m.ensureCursor()
 }
 
+func (m *model) resetSelection() {
+	m.cursor = 0
+	m.offset = 0
+}
+
 func (m *model) ensureCursor() {
 	if len(m.filtered) == 0 {
-		m.cursor = 0
-		m.offset = 0
+		m.resetSelection()
 		return
 	}
 	if m.cursor < 0 {
@@ -365,7 +365,7 @@ func (m *model) scheduleFilter(delay time.Duration) {
 
 func (m *model) applyFilter() {
 	m.filterPending = false
-	sameQuery := runesEqual(m.queryRunes, m.lastFilterQueryRunes)
+	sameQuery := slices.Equal(m.queryRunes, m.lastFilterQueryRunes)
 	if len(m.candidates) == m.lastFilterCandidateN && sameQuery {
 		return
 	}
@@ -393,15 +393,10 @@ func (m *model) applyFilter() {
 	m.lastFilterCandidateN = candidateN
 
 	if len(m.filtered) == 0 {
-		m.cursor = 0
-		m.offset = 0
 		m.previewKey = ""
-		return
 	}
-
-	if resetSelection || selectedID == 0 {
-		m.cursor = 0
-		m.offset = 0
+	if len(m.filtered) == 0 || resetSelection || selectedID == 0 {
+		m.resetSelection()
 		return
 	}
 
@@ -414,8 +409,7 @@ func (m *model) applyFilter() {
 		}
 	}
 
-	m.cursor = 0
-	m.offset = 0
+	m.resetSelection()
 }
 
 func (m *model) queueVisibleHighlights() {
@@ -507,14 +501,17 @@ func (m *model) loadFile(rel string) ([]string, error) {
 		return lines, nil
 	}
 	abs := filepath.Join(m.cfg.Root, rel)
-	data, err := os.ReadFile(abs)
+	lines, err := readfile.ReadLinesNormalized(abs)
 	if err != nil {
 		return nil, err
 	}
-	normalized := strings.ReplaceAll(string(data), "\r\n", "\n")
-	lines := strings.Split(normalized, "\n")
 	m.fileCache[rel] = lines
 	return lines, nil
+}
+
+func fatalf(format string, args ...any) {
+	fmt.Fprintf(os.Stderr, format+"\n", args...)
+	os.Exit(1)
 }
 
 func main() {
@@ -539,14 +536,12 @@ func main() {
 	cfg.Debounce = time.Duration(*debounceMs) * time.Millisecond
 
 	if err := SetTheme(cfg.Theme); err != nil {
-		fmt.Fprintf(os.Stderr, "invalid --theme: %v\n", err)
-		os.Exit(1)
+		fatalf("invalid --theme: %v", err)
 	}
 
 	mode, err := highlighter.ParseHighlightContextMode(*highlightContext)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "invalid --highlight-context: %v\n", err)
-		os.Exit(1)
+		fatalf("invalid --highlight-context: %v", err)
 	}
 	cfg.HighlightMode = mode
 
@@ -556,8 +551,7 @@ func main() {
 
 	absRoot, err := filepath.Abs(cfg.Root)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "resolve root: %v\n", err)
-		os.Exit(1)
+		fatalf("resolve root: %v", err)
 	}
 	cfg.Root = absRoot
 
@@ -597,7 +591,6 @@ func main() {
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "snav failed: %v\n", err)
-		os.Exit(1)
+		fatalf("snav failed: %v", err)
 	}
 }

@@ -49,29 +49,14 @@ var extMap = map[string]ID{
 	".cxx":   CPP,
 	".hpp":   CPP,
 	".hh":    CPP,
-
-	".java":  Plain,
-	".kt":    Plain,
-	".swift": Plain,
-	".rb":    Plain,
-	".php":   Plain,
-	".lua":   Plain,
-	".ini":   Plain,
-	".conf":  Plain,
-	".md":    Plain,
 }
 
 var fileMap = map[string]ID{
-	"Makefile":          Plain,
-	"Dockerfile":        Plain,
 	".bashrc":           Bash,
 	".zshrc":            Bash,
-	".gitignore":        Plain,
-	".editorconfig":     Plain,
 	"Cargo.toml":        TOML,
 	"package-lock.json": JSON,
 	"go.mod":            Go,
-	"go.sum":            Plain,
 }
 
 func Detect(path string) ID {

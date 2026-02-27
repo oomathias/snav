@@ -58,13 +58,13 @@ func classifyLeaf(lang LangID, node *sitter.Node, parentType string, grandType s
 	if strings.Contains(nodeType, "comment") {
 		return TokenComment
 	}
-	if strings.Contains(nodeType, "string") || strings.Contains(nodeType, "char") || strings.Contains(nodeType, "heredoc") {
+	if containsAnySubstring(nodeType, "string", "char", "heredoc") {
 		if lang == LangJSON && (parentType == "pair" || grandType == "pair") {
 			return TokenType
 		}
 		return TokenString
 	}
-	if strings.Contains(nodeType, "number") || strings.Contains(nodeType, "integer") || strings.Contains(nodeType, "float") || strings.Contains(nodeType, "numeric") {
+	if containsAnySubstring(nodeType, "number", "integer", "float", "numeric") {
 		return TokenNumber
 	}
 	if lexeme == "true" || lexeme == "false" || lexeme == "null" || lexeme == "nil" || lexeme == "none" {
@@ -75,7 +75,7 @@ func classifyLeaf(lang LangID, node *sitter.Node, parentType string, grandType s
 		return TokenKeyword
 	}
 
-	if strings.Contains(nodeType, "type_identifier") || strings.Contains(nodeType, "primitive_type") || strings.Contains(nodeType, "predefined_type") {
+	if containsAnySubstring(nodeType, "type_identifier", "primitive_type", "predefined_type") {
 		return TokenType
 	}
 
@@ -98,13 +98,8 @@ func classifyLeaf(lang LangID, node *sitter.Node, parentType string, grandType s
 		return TokenOperator
 	}
 
-	if !node.IsNamed() {
-		if operatorSet[lexeme] || looksLikeOperator(lexeme) {
-			return TokenOperator
-		}
-		if keywordSet[lexeme] || strings.HasSuffix(nodeType, "keyword") {
-			return TokenKeyword
-		}
+	if !node.IsNamed() && looksLikeOperator(lexeme) {
+		return TokenOperator
 	}
 
 	return TokenPlain
@@ -115,23 +110,27 @@ func isIdentifierNode(nodeType string) bool {
 }
 
 func isFunctionContext(lang LangID, parentType string, grandType string) bool {
-	if strings.Contains(parentType, "function") || strings.Contains(parentType, "method") || strings.Contains(parentType, "call") || strings.Contains(grandType, "function") || strings.Contains(grandType, "method") || strings.Contains(grandType, "call") {
-		return true
-	}
-
-	if set, ok := functionContextByLang[lang]; ok && (set[parentType] || set[grandType]) {
-		return true
-	}
-	return false
+	return isContext(lang, parentType, grandType, functionContextByLang, "function", "method", "call")
 }
 
 func isTypeContext(lang LangID, parentType string, grandType string) bool {
-	if strings.Contains(parentType, "type") || strings.Contains(grandType, "type") || strings.Contains(parentType, "class") || strings.Contains(parentType, "struct") || strings.Contains(parentType, "interface") || strings.Contains(parentType, "trait") || strings.Contains(grandType, "class") || strings.Contains(grandType, "struct") || strings.Contains(grandType, "interface") || strings.Contains(grandType, "trait") {
+	return isContext(lang, parentType, grandType, typeContextByLang, "type", "class", "struct", "interface", "trait")
+}
+
+func isContext(lang LangID, parentType string, grandType string, byLang map[LangID]map[string]bool, hints ...string) bool {
+	if containsAnySubstring(parentType, hints...) || containsAnySubstring(grandType, hints...) {
 		return true
 	}
 
-	if set, ok := typeContextByLang[lang]; ok && (set[parentType] || set[grandType]) {
-		return true
+	set := byLang[lang]
+	return set[parentType] || set[grandType]
+}
+
+func containsAnySubstring(s string, needles ...string) bool {
+	for _, needle := range needles {
+		if strings.Contains(s, needle) {
+			return true
+		}
 	}
 	return false
 }
@@ -185,36 +184,15 @@ var functionContextByLang = map[LangID]map[string]bool{
 		"call_expression":  true,
 		"field_expression": true,
 	},
-	LangJavaScript: {
-		"function_declaration": true,
-		"method_definition":    true,
-		"call_expression":      true,
-		"member_expression":    true,
-	},
-	LangTypeScript: {
-		"function_declaration": true,
-		"method_definition":    true,
-		"call_expression":      true,
-		"member_expression":    true,
-	},
-	LangTSX: {
-		"function_declaration": true,
-		"method_definition":    true,
-		"call_expression":      true,
-		"member_expression":    true,
-	},
+	LangJavaScript: jsLikeFunctionContexts,
+	LangTypeScript: jsLikeFunctionContexts,
+	LangTSX:        jsLikeFunctionContexts,
 	LangPython: {
 		"function_definition": true,
 		"call":                true,
 	},
-	LangC: {
-		"function_definition": true,
-		"call_expression":     true,
-	},
-	LangCPP: {
-		"function_definition": true,
-		"call_expression":     true,
-	},
+	LangC:   cFamilyFunctionContexts,
+	LangCPP: cFamilyFunctionContexts,
 }
 
 var typeContextByLang = map[LangID]map[string]bool{
@@ -234,21 +212,30 @@ var typeContextByLang = map[LangID]map[string]bool{
 		"class_declaration": true,
 		"type_annotation":   true,
 	},
-	LangTypeScript: {
-		"interface_declaration":  true,
-		"type_alias_declaration": true,
-		"type_annotation":        true,
-		"class_declaration":      true,
-	},
-	LangTSX: {
-		"interface_declaration":  true,
-		"type_alias_declaration": true,
-		"type_annotation":        true,
-		"class_declaration":      true,
-	},
+	LangTypeScript: tsLikeTypeContexts,
+	LangTSX:        tsLikeTypeContexts,
 	LangPython: {
 		"class_definition": true,
 	},
+}
+
+var jsLikeFunctionContexts = map[string]bool{
+	"function_declaration": true,
+	"method_definition":    true,
+	"call_expression":      true,
+	"member_expression":    true,
+}
+
+var cFamilyFunctionContexts = map[string]bool{
+	"function_definition": true,
+	"call_expression":     true,
+}
+
+var tsLikeTypeContexts = map[string]bool{
+	"interface_declaration":  true,
+	"type_alias_declaration": true,
+	"type_annotation":        true,
+	"class_declaration":      true,
 }
 
 var keywordSet = map[string]bool{

@@ -67,6 +67,16 @@ func SaveIndexCache(cfg candidate.ProducerConfig, candidates []candidate.Candida
 	if err != nil {
 		return err
 	}
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+	failWithClose := func(err error) error {
+		_ = f.Close()
+		return err
+	}
 
 	writer := bufio.NewWriterSize(f, 1<<20)
 	disk := diskIndexCache{
@@ -79,24 +89,19 @@ func SaveIndexCache(cfg candidate.ProducerConfig, candidates []candidate.Candida
 		Candidates:   candidates,
 	}
 	if err := gob.NewEncoder(writer).Encode(&disk); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmpPath)
-		return err
+		return failWithClose(err)
 	}
 	if err := writer.Flush(); err != nil {
-		_ = f.Close()
-		_ = os.Remove(tmpPath)
-		return err
+		return failWithClose(err)
 	}
 	if err := f.Close(); err != nil {
-		_ = os.Remove(tmpPath)
 		return err
 	}
 
 	if err := os.Rename(tmpPath, path); err != nil {
-		_ = os.Remove(tmpPath)
 		return err
 	}
+	cleanup = false
 
 	return nil
 }

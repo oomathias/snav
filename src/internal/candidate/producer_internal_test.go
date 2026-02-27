@@ -1,6 +1,7 @@
 package candidate
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -46,4 +47,71 @@ func TestTestExcludeGlobsAreSpecific(t *testing.T) {
 			t.Fatalf("glob %q is too broad and can hide non-test files", glob)
 		}
 	}
+}
+
+func TestRGArgs(t *testing.T) {
+	t.Run("defaults", func(t *testing.T) {
+		cfg := ProducerConfig{
+			Pattern: "",
+		}
+		got := rgArgs(cfg, "todo")
+		want := []string{
+			"--vimgrep",
+			"--null",
+			"--trim",
+			"--color", "never",
+			"--no-heading",
+			"--smart-case",
+			"todo", ".",
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("rgArgs = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("flags", func(t *testing.T) {
+		cfg := ProducerConfig{
+			NoIgnore:     true,
+			Excludes:     []string{"a/**", "b/**"},
+			ExcludeTests: true,
+			Pattern:      "func",
+		}
+		got := rgArgs(cfg, "func")
+		want := []string{
+			"--vimgrep",
+			"--null",
+			"--trim",
+			"--color", "never",
+			"--no-heading",
+			"--smart-case",
+			"--no-ignore",
+			"--glob", "!a/**",
+			"--glob", "!b/**",
+			"--glob", "!test/**",
+			"--glob", "!tests/**",
+			"--glob", "!__tests__/**",
+			"--glob", "!spec/**",
+			"--glob", "!specs/**",
+			"--glob", "!**/test/**",
+			"--glob", "!**/tests/**",
+			"--glob", "!**/__tests__/**",
+			"--glob", "!**/spec/**",
+			"--glob", "!**/specs/**",
+			"--glob", "!*_test.*",
+			"--glob", "!*_spec.*",
+			"--glob", "!*.test.*",
+			"--glob", "!*.spec.*",
+			"--glob", "!test_*.py",
+			"--glob", "!**/*_test.*",
+			"--glob", "!**/*_spec.*",
+			"--glob", "!**/*.test.*",
+			"--glob", "!**/*.spec.*",
+			"--glob", "!**/test_*.py",
+			"func",
+			".",
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("rgArgs = %#v, want %#v", got, want)
+		}
+	})
 }

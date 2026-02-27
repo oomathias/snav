@@ -38,13 +38,16 @@ func ExtractKey(text string, file string) string {
 		return ident
 	}
 
-	base := filepath.Base(file)
-	ext := filepath.Ext(base)
-	base = strings.TrimSuffix(base, ext)
+	base := fileBaseWithoutExt(file)
 	if base == "" {
 		return file
 	}
 	return base
+}
+
+func fileBaseWithoutExt(path string) string {
+	base := filepath.Base(path)
+	return strings.TrimSuffix(base, filepath.Ext(base))
 }
 
 var matcherStopWords = map[string]bool{

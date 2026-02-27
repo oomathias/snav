@@ -1,7 +1,6 @@
 package candidate
 
 import (
-	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -35,28 +34,14 @@ func FilterCandidatesRangeWithQueryRunes(candidates []Candidate, start int, end 
 	caseSensitive := len(qRaw) == len(qLower)
 	n := end - start
 	workers := filterWorkerCount(n)
-
 	var out []FilteredCandidate
 	if workers <= 1 {
 		out = make([]FilteredCandidate, 0, max(1, n/4))
-		for i := start; i < end; i++ {
-			item, ok := scoreCandidate(&candidates[i], int32(i), qRaw, qLower, caseSensitive)
-			if !ok {
-				continue
-			}
-			out = append(out, item)
-		}
+		out = appendScoredRange(out, candidates, nil, start, end, qRaw, qLower, caseSensitive)
 	} else {
 		out = filterCandidatesParallelChunks(workers, n, func(chunkStart int, chunkEnd int) []FilteredCandidate {
 			local := make([]FilteredCandidate, 0, max(1, (chunkEnd-chunkStart)/4))
-			for i := start + chunkStart; i < start+chunkEnd; i++ {
-				item, ok := scoreCandidate(&candidates[i], int32(i), qRaw, qLower, caseSensitive)
-				if !ok {
-					continue
-				}
-				local = append(local, item)
-			}
-			return local
+			return appendScoredRange(local, candidates, nil, start+chunkStart, start+chunkEnd, qRaw, qLower, caseSensitive)
 		})
 	}
 
@@ -81,25 +66,25 @@ func filterCandidatesCore(candidates []Candidate, subset []FilteredCandidate, qR
 	}
 
 	caseSensitive := len(qRaw) == len(qLower)
-	n := len(candidates)
+	rangeLen := len(candidates)
+	serialCapacity := len(candidates) / 4
+	parallelDivisor := 4
 	if subset != nil {
-		n = len(subset)
+		rangeLen = len(subset)
+		serialCapacity = len(subset) / 2
+		parallelDivisor = 2
 	}
 
-	workers := filterWorkerCount(n)
+	workers := filterWorkerCount(rangeLen)
 	var out []FilteredCandidate
 	if workers <= 1 {
-		if subset == nil {
-			out = filterCandidatesSerial(candidates, qRaw, qLower, caseSensitive)
-		} else {
-			out = filterCandidatesSubsetSerial(candidates, subset, qRaw, qLower, caseSensitive)
-		}
+		out = make([]FilteredCandidate, 0, serialCapacity)
+		out = appendScoredRange(out, candidates, subset, 0, rangeLen, qRaw, qLower, caseSensitive)
 	} else {
-		if subset == nil {
-			out = filterCandidatesParallel(candidates, qRaw, qLower, caseSensitive, workers)
-		} else {
-			out = filterCandidatesSubsetParallel(candidates, subset, qRaw, qLower, caseSensitive, workers)
-		}
+		out = filterCandidatesParallelChunks(workers, rangeLen, func(start int, end int) []FilteredCandidate {
+			local := make([]FilteredCandidate, 0, max(1, (end-start)/parallelDivisor))
+			return appendScoredRange(local, candidates, subset, start, end, qRaw, qLower, caseSensitive)
+		})
 	}
 
 	sortFilteredCandidates(candidates, out)
@@ -127,64 +112,31 @@ func filterWorkerCount(n int) int {
 	return workers
 }
 
-func filterCandidatesSerial(candidates []Candidate, qRaw []rune, qLower []rune, caseSensitive bool) []FilteredCandidate {
-	out := make([]FilteredCandidate, 0, len(candidates)/4)
-	for i := range candidates {
-		item, ok := scoreCandidate(&candidates[i], int32(i), qRaw, qLower, caseSensitive)
-		if !ok {
-			continue
-		}
-		out = append(out, item)
-	}
-	return out
-}
-
-func filterCandidatesSubsetSerial(candidates []Candidate, subset []FilteredCandidate, qRaw []rune, qLower []rune, caseSensitive bool) []FilteredCandidate {
-	out := make([]FilteredCandidate, 0, len(subset)/2)
-	for _, base := range subset {
-		idx := int(base.Index)
-		if idx < 0 || idx >= len(candidates) {
-			continue
-		}
-		item, ok := scoreCandidate(&candidates[idx], base.Index, qRaw, qLower, caseSensitive)
-		if !ok {
-			continue
-		}
-		out = append(out, item)
-	}
-	return out
-}
-
-func filterCandidatesParallel(candidates []Candidate, qRaw []rune, qLower []rune, caseSensitive bool, workers int) []FilteredCandidate {
-	return filterCandidatesParallelChunks(workers, len(candidates), func(start int, end int) []FilteredCandidate {
-		local := make([]FilteredCandidate, 0, max(1, (end-start)/4))
+func appendScoredRange(out []FilteredCandidate, candidates []Candidate, subset []FilteredCandidate, start int, end int, qRaw []rune, qLower []rune, caseSensitive bool) []FilteredCandidate {
+	if subset == nil {
 		for i := start; i < end; i++ {
 			item, ok := scoreCandidate(&candidates[i], int32(i), qRaw, qLower, caseSensitive)
 			if !ok {
 				continue
 			}
-			local = append(local, item)
+			out = append(out, item)
 		}
-		return local
-	})
-}
+		return out
+	}
 
-func filterCandidatesSubsetParallel(candidates []Candidate, subset []FilteredCandidate, qRaw []rune, qLower []rune, caseSensitive bool, workers int) []FilteredCandidate {
-	return filterCandidatesParallelChunks(workers, len(subset), func(start int, end int) []FilteredCandidate {
-		local := make([]FilteredCandidate, 0, max(1, (end-start)/2))
-		for i := start; i < end; i++ {
-			idx := int(subset[i].Index)
-			if idx < 0 || idx >= len(candidates) {
-				continue
-			}
-			item, ok := scoreCandidate(&candidates[idx], subset[i].Index, qRaw, qLower, caseSensitive)
-			if !ok {
-				continue
-			}
-			local = append(local, item)
+	for i := start; i < end; i++ {
+		idx := int(subset[i].Index)
+		if idx < 0 || idx >= len(candidates) {
+			continue
 		}
-		return local
-	})
+
+		item, ok := scoreCandidate(&candidates[idx], subset[i].Index, qRaw, qLower, caseSensitive)
+		if !ok {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
 }
 
 func filterCandidatesParallelChunks(workers int, n int, filterChunk func(start int, end int) []FilteredCandidate) []FilteredCandidate {
@@ -320,9 +272,7 @@ func keyLooksLikeFilename(cand *Candidate) bool {
 	if cand == nil {
 		return false
 	}
-	base := filepath.Base(cand.File)
-	ext := filepath.Ext(base)
-	base = strings.TrimSuffix(base, ext)
+	base := fileBaseWithoutExt(cand.File)
 	if base == "" || cand.Key == "" {
 		return false
 	}

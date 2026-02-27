@@ -55,15 +55,17 @@ func LoadThemePalette(name string) (ThemePalette, error) {
 	for _, n := range names {
 		available[n] = struct{}{}
 	}
-	if _, ok := available[lookup]; !ok {
+	unknownThemeErr := func() error {
 		sort.Strings(names)
-		return ThemePalette{}, fmt.Errorf("unknown theme %q. try one of: %s", requested, strings.Join(topThemeHints(names), ", "))
+		return fmt.Errorf("unknown theme %q. try one of: %s", requested, strings.Join(topThemeHints(names), ", "))
+	}
+	if _, ok := available[lookup]; !ok {
+		return ThemePalette{}, unknownThemeErr()
 	}
 
 	style := styles.Get(lookup)
 	if style == nil {
-		sort.Strings(names)
-		return ThemePalette{}, fmt.Errorf("unknown theme %q. try one of: %s", requested, strings.Join(topThemeHints(names), ", "))
+		return ThemePalette{}, unknownThemeErr()
 	}
 
 	baseBG := pickBackground(style, "#2E3440", chroma.Background, chroma.LineHighlight)

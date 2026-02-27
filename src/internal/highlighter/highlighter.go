@@ -4,13 +4,12 @@ import (
 	"container/list"
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-	"unicode/utf8"
 
 	"snav/internal/lang"
+	"snav/internal/readfile"
 
 	sitter "github.com/smacker/go-tree-sitter"
 	bashlang "github.com/smacker/go-tree-sitter/bash"
@@ -331,8 +330,7 @@ func (h *Highlighter) HighlightWithParser(parser *sitter.Parser, req HighlightRe
 }
 
 func (h *Highlighter) highlightSynthetic(parser *sitter.Parser, lang LangID, text string) []Span {
-	runeLen := utf8.RuneCountInString(text)
-	if runeLen == 0 {
+	if text == "" {
 		return nil
 	}
 
@@ -341,26 +339,11 @@ func (h *Highlighter) highlightSynthetic(parser *sitter.Parser, lang LangID, tex
 		return plainSpans(text)
 	}
 
-	parser.SetLanguage(language)
-
 	source, lineStart, lineEnd := scaffoldLine(lang, text)
-	tree, err := parser.ParseCtx(context.Background(), nil, source)
-	if err != nil || tree == nil {
+	raw, ok := collectRawSpans(parser, language, source, lineStart, lineEnd, lang)
+	if !ok {
 		return plainSpans(text)
 	}
-	defer tree.Close()
-
-	root := tree.RootNode()
-	if root == nil {
-		return plainSpans(text)
-	}
-
-	raw := make([]rawSpan, 0, 32)
-	collectLeafSpans(root, lineStart, lineEnd, source, lang, "", "", &raw)
-	if len(raw) == 0 {
-		return plainSpans(text)
-	}
-
 	return buildMergedSpans(text, raw)
 }
 
@@ -391,30 +374,37 @@ func (h *Highlighter) highlightFromFileContext(parser *sitter.Parser, req Highli
 		return nil, false
 	}
 
-	parser.SetLanguage(language)
-	tree, err := parser.ParseCtx(context.Background(), nil, source)
-	if err != nil || tree == nil {
+	raw, ok := collectRawSpans(parser, language, source, targetStart, targetEnd, req.Lang)
+	if !ok {
 		return nil, false
 	}
-	defer tree.Close()
-
-	root := tree.RootNode()
-	if root == nil {
-		return nil, false
-	}
-
-	raw := make([]rawSpan, 0, 32)
-	collectLeafSpans(root, targetStart, targetEnd, source, req.Lang, "", "", &raw)
-	baseSpans := plainSpans(targetLine)
-	if len(raw) > 0 {
-		baseSpans = buildMergedSpans(targetLine, raw)
-	}
+	baseSpans := buildMergedSpans(targetLine, raw)
 
 	projected, ok := projectSpansToDisplay(baseSpans, targetLine, display)
 	if !ok {
 		return nil, false
 	}
 	return projected, true
+}
+
+func collectRawSpans(parser *sitter.Parser, language *sitter.Language, source []byte, lineStart int, lineEnd int, lang LangID) ([]rawSpan, bool) {
+	parser.SetLanguage(language)
+
+	tree, err := parser.ParseCtx(context.Background(), nil, source)
+	if err != nil || tree == nil {
+		return nil, false
+	}
+
+	root := tree.RootNode()
+	if root == nil {
+		tree.Close()
+		return nil, false
+	}
+	defer tree.Close()
+
+	raw := make([]rawSpan, 0, 32)
+	collectLeafSpans(root, lineStart, lineEnd, source, lang, "", "", &raw)
+	return raw, true
 }
 
 func (h *Highlighter) loadFileLines(path string) ([]string, error) {
@@ -425,13 +415,10 @@ func (h *Highlighter) loadFileLines(path string) ([]string, error) {
 	}
 	h.fileMu.RUnlock()
 
-	data, err := os.ReadFile(path)
+	lines, err := readfile.ReadLinesNormalized(path)
 	if err != nil {
 		return nil, err
 	}
-
-	normalized := strings.ReplaceAll(string(data), "\r\n", "\n")
-	lines := strings.Split(normalized, "\n")
 
 	h.fileMu.Lock()
 	h.fileLines[path] = lines

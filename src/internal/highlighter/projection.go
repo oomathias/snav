@@ -31,19 +31,13 @@ func buildSliceSource(lines []string, targetIndex int) ([]byte, int, int, bool) 
 }
 
 func projectSpansToDisplay(baseSpans []Span, sourceLine string, displayLine string) ([]Span, bool) {
-	if displayLine == "" {
-		return nil, true
-	}
-
 	displayRunes := []rune(displayLine)
 
 	normalizedSource, normalizedToSource := normalizeLineForDisplayRunes(sourceLine)
 
 	prefixLen := len(displayRunes)
-	hasEllipsis := false
-	if len(displayRunes) >= 3 && strings.HasSuffix(displayLine, "...") {
-		hasEllipsis = true
-		prefixLen = len(displayRunes) - 3
+	if prefixLen >= 3 && strings.HasSuffix(displayLine, "...") {
+		prefixLen -= 3
 	}
 
 	if prefixLen > len(normalizedSource) {
@@ -54,19 +48,6 @@ func projectSpansToDisplay(baseSpans []Span, sourceLine string, displayLine stri
 	}
 
 	projected := make([]Span, 0, len(baseSpans)+2)
-	appendSpan := func(start int, end int, cat TokenCategory) {
-		if end <= start {
-			return
-		}
-		if len(projected) > 0 {
-			last := &projected[len(projected)-1]
-			if last.End == start && last.Cat == cat {
-				last.End = end
-				return
-			}
-		}
-		projected = append(projected, Span{Start: start, End: end, Cat: cat})
-	}
 
 	spanIdx := 0
 	for i := 0; i < prefixLen; i++ {
@@ -81,11 +62,11 @@ func projectSpansToDisplay(baseSpans []Span, sourceLine string, displayLine stri
 				cat = span.Cat
 			}
 		}
-		appendSpan(i, i+1, cat)
+		projected = appendMergedSpan(projected, i, i+1, cat)
 	}
 
-	if hasEllipsis {
-		appendSpan(prefixLen, len(displayRunes), TokenPlain)
+	if prefixLen < len(displayRunes) {
+		projected = appendMergedSpan(projected, prefixLen, len(displayRunes), TokenPlain)
 	}
 
 	return normalizeSpans(projected, len(displayRunes)), true

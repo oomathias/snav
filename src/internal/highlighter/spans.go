@@ -46,16 +46,6 @@ func buildMergedSpans(text string, raw []rawSpan) []Span {
 	if runeLen == 0 {
 		return nil
 	}
-	if len(raw) == 0 {
-		return plainSpans(text)
-	}
-
-	sort.Slice(raw, func(i, j int) bool {
-		if raw[i].Start == raw[j].Start {
-			return raw[i].End < raw[j].End
-		}
-		return raw[i].Start < raw[j].Start
-	})
 
 	spans := make([]Span, 0, len(raw)+2)
 	for _, rs := range raw {
@@ -74,9 +64,6 @@ func normalizeSpans(spans []Span, runeLen int) []Span {
 	if runeLen <= 0 {
 		return nil
 	}
-	if len(spans) == 0 {
-		return []Span{{Start: 0, End: runeLen, Cat: TokenPlain}}
-	}
 
 	clean := make([]Span, 0, len(spans))
 	for _, span := range spans {
@@ -92,10 +79,6 @@ func normalizeSpans(spans []Span, runeLen int) []Span {
 			continue
 		}
 		clean = append(clean, Span{Start: start, End: end, Cat: span.Cat})
-	}
-
-	if len(clean) == 0 {
-		return []Span{{Start: 0, End: runeLen, Cat: TokenPlain}}
 	}
 
 	sort.Slice(clean, func(i, j int) bool {
@@ -119,32 +102,34 @@ func normalizeSpans(spans []Span, runeLen int) []Span {
 		}
 
 		if start > cursor {
-			out = append(out, Span{Start: cursor, End: start, Cat: TokenPlain})
+			out = appendMergedSpan(out, cursor, start, TokenPlain)
 		}
-
-		if len(out) > 0 {
-			last := &out[len(out)-1]
-			if last.End == start && last.Cat == span.Cat {
-				last.End = end
-			} else {
-				out = append(out, Span{Start: start, End: end, Cat: span.Cat})
-			}
-		} else {
-			out = append(out, Span{Start: start, End: end, Cat: span.Cat})
-		}
+		out = appendMergedSpan(out, start, end, span.Cat)
 
 		cursor = end
 	}
 
 	if cursor < runeLen {
-		out = append(out, Span{Start: cursor, End: runeLen, Cat: TokenPlain})
-	}
-
-	if len(out) == 0 {
-		return []Span{{Start: 0, End: runeLen, Cat: TokenPlain}}
+		out = appendMergedSpan(out, cursor, runeLen, TokenPlain)
 	}
 
 	return out
+}
+
+func appendMergedSpan(spans []Span, start int, end int, cat TokenCategory) []Span {
+	if end <= start {
+		return spans
+	}
+
+	if len(spans) > 0 {
+		last := &spans[len(spans)-1]
+		if last.End == start && last.Cat == cat {
+			last.End = end
+			return spans
+		}
+	}
+
+	return append(spans, Span{Start: start, End: end, Cat: cat})
 }
 
 func byteToRuneIndex(s string, b int) int {

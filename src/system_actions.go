@@ -22,39 +22,12 @@ func openLocation(path string, line int, col int, editorCmd string) error {
 		return exec.Command(name, args...).Start()
 	}
 
-	if found, err := startCommandIfAvailable("zed", target); found {
+	commands, unavailable := openFileCommands(path)
+	commands = append([][]string{{"zed", target}}, commands...)
+	if found, err := runFirstAvailableCommand(commands, runCommandStart); found {
 		return err
 	}
-
-	switch runtime.GOOS {
-	case "darwin":
-		if found, err := startCommandIfAvailable("open", path); found {
-			return err
-		}
-		return fmt.Errorf("zed and open are unavailable")
-	case "linux":
-		if found, err := startCommandIfAvailable("xdg-open", path); found {
-			return err
-		}
-		return fmt.Errorf("zed and xdg-open are unavailable")
-	case "windows":
-		if found, err := startCommandIfAvailable("explorer.exe", path); found {
-			return err
-		}
-		if found, err := startCommandIfAvailable("cmd", "/C", "start", "", path); found {
-			return err
-		}
-		return fmt.Errorf("zed and explorer are unavailable")
-	default:
-		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
-	}
-}
-
-func startCommandIfAvailable(name string, args ...string) (bool, error) {
-	if _, err := exec.LookPath(name); err != nil {
-		return false, nil
-	}
-	return true, exec.Command(name, args...).Start()
+	return unavailable
 }
 
 func buildEditorCommand(template string, file string, line int, col int, target string) (string, []string, error) {
@@ -143,18 +116,14 @@ func copyToClipboard(s string) error {
 	case "darwin":
 		return pipeStringToCommand(s, "pbcopy")
 	case "linux":
-		clipboardCommands := []struct {
-			name string
-			args []string
-		}{
-			{name: "wl-copy"},
-			{name: "xclip", args: []string{"-selection", "clipboard"}},
-			{name: "xsel", args: []string{"--clipboard", "--input"}},
-		}
-		for _, cmd := range clipboardCommands {
-			if _, err := exec.LookPath(cmd.name); err == nil {
-				return pipeStringToCommand(s, cmd.name, cmd.args...)
-			}
+		if found, err := runFirstAvailableCommand([][]string{
+			{"wl-copy"},
+			{"xclip", "-selection", "clipboard"},
+			{"xsel", "--clipboard", "--input"},
+		}, func(name string, args []string) error {
+			return pipeStringToCommand(s, name, args...)
+		}); found {
+			return err
 		}
 		return fmt.Errorf("no clipboard utility found (install wl-copy, xclip, or xsel)")
 	case "windows":
@@ -162,6 +131,41 @@ func copyToClipboard(s string) error {
 	default:
 		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
 	}
+}
+
+func openFileCommands(path string) ([][]string, error) {
+	switch runtime.GOOS {
+	case "darwin":
+		return [][]string{{"open", path}}, fmt.Errorf("zed and open are unavailable")
+	case "linux":
+		return [][]string{{"xdg-open", path}}, fmt.Errorf("zed and xdg-open are unavailable")
+	case "windows":
+		return [][]string{{"explorer.exe", path}, {"cmd", "/C", "start", "", path}}, fmt.Errorf("zed and explorer are unavailable")
+	default:
+		return nil, fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+	}
+}
+
+func runCommandStart(name string, args []string) error {
+	return exec.Command(name, args...).Start()
+}
+
+func runFirstAvailableCommand(candidates [][]string, run func(name string, args []string) error) (bool, error) {
+	for _, candidate := range candidates {
+		if len(candidate) == 0 {
+			continue
+		}
+
+		name := candidate[0]
+		args := candidate[1:]
+		if _, err := exec.LookPath(name); err != nil {
+			continue
+		}
+
+		return true, run(name, args)
+	}
+
+	return false, nil
 }
 
 func pipeStringToCommand(input string, name string, args ...string) error {

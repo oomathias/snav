@@ -52,10 +52,7 @@ func clamp(v int, lo int, hi int) int {
 }
 
 func shouldUseIncrementalFilter(current []rune, previous []rune, candidateN int, previousCandidateN int) bool {
-	if len(current) == 0 || len(previous) == 0 {
-		return false
-	}
-	if len(current) <= len(previous) {
+	if len(previous) == 0 || len(current) <= len(previous) {
 		return false
 	}
 	if candidateN != previousCandidateN {
@@ -75,8 +72,4 @@ func copyRunesReuse(dst []rune, src []rune) []rune {
 	}
 	copy(dst, src)
 	return dst
-}
-
-func runesEqual(a []rune, b []rune) bool {
-	return slices.Equal(a, b)
 }

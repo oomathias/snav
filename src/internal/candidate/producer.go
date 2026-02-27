@@ -20,32 +20,11 @@ func StartProducer(ctx context.Context, cfg ProducerConfig) (<-chan Candidate, <
 		defer close(out)
 		defer close(done)
 
-		args := []string{
-			"--vimgrep",
-			"--null",
-			"--trim",
-			"--color", "never",
-			"--no-heading",
-			"--smart-case",
-		}
-		if cfg.NoIgnore {
-			args = append(args, "--no-ignore")
-		}
-		for _, glob := range cfg.Excludes {
-			args = append(args, "--glob", "!"+glob)
-		}
-		if cfg.ExcludeTests {
-			for _, glob := range testExcludeGlobs {
-				args = append(args, "--glob", "!"+glob)
-			}
-		}
-
 		pattern := strings.TrimSpace(cfg.Pattern)
 		if pattern == "" {
 			pattern = DefaultRGPattern
 		}
-
-		args = append(args, pattern, ".")
+		args := rgArgs(cfg, pattern)
 
 		cmd := exec.CommandContext(ctx, "rg", args...)
 		cmd.Dir = cfg.Root
@@ -118,6 +97,31 @@ func StartProducer(ctx context.Context, cfg ProducerConfig) (<-chan Candidate, <
 	return out, done
 }
 
+func rgArgs(cfg ProducerConfig, pattern string) []string {
+	args := []string{
+		"--vimgrep",
+		"--null",
+		"--trim",
+		"--color", "never",
+		"--no-heading",
+		"--smart-case",
+	}
+	if cfg.NoIgnore {
+		args = append(args, "--no-ignore")
+	}
+	for _, glob := range cfg.Excludes {
+		args = append(args, "--glob", "!"+glob)
+	}
+	if cfg.ExcludeTests {
+		for _, glob := range testExcludeGlobs {
+			args = append(args, "--glob", "!"+glob)
+		}
+	}
+
+	args = append(args, pattern, ".")
+	return args
+}
+
 func parseRGVimgrepLine(raw []byte) (file string, lineNo int, colNo int, text string, ok bool) {
 	nul := bytes.IndexByte(raw, 0)
 	if nul <= 0 || nul >= len(raw)-1 {
@@ -127,44 +131,37 @@ func parseRGVimgrepLine(raw []byte) (file string, lineNo int, colNo int, text st
 	file = string(raw[:nul])
 	rest := raw[nul+1:]
 
-	sep1 := bytes.IndexByte(rest, ':')
-	if sep1 <= 0 {
-		return "", 0, 0, "", false
-	}
-	parsedLine, ok := parsePositiveIntBytes(rest[:sep1])
+	parsedLine, rest, ok := parsePositiveIntField(rest)
 	if !ok {
 		return "", 0, 0, "", false
 	}
-	rest = rest[sep1+1:]
-
-	sep2 := bytes.IndexByte(rest, ':')
-	if sep2 <= 0 {
-		return "", 0, 0, "", false
-	}
-	parsedCol, ok := parsePositiveIntBytes(rest[:sep2])
+	parsedCol, rest, ok := parsePositiveIntField(rest)
 	if !ok {
 		return "", 0, 0, "", false
 	}
 
 	lineNo = parsedLine
 	colNo = parsedCol
-	text = strings.TrimRight(string(rest[sep2+1:]), "\r")
+	text = strings.TrimRight(string(rest), "\r")
 	return file, lineNo, colNo, text, true
 }
 
-func parsePositiveIntBytes(raw []byte) (int, bool) {
-	if len(raw) == 0 {
-		return 0, false
+func parsePositiveIntField(raw []byte) (int, []byte, bool) {
+	sep := bytes.IndexByte(raw, ':')
+	if sep <= 0 {
+		return 0, nil, false
 	}
-	v := 0
-	for _, b := range raw {
+
+	value := 0
+	for _, b := range raw[:sep] {
 		if b < '0' || b > '9' {
-			return 0, false
+			return 0, nil, false
 		}
-		v = v*10 + int(b-'0')
+		value = value*10 + int(b-'0')
 	}
-	if v <= 0 {
-		return 0, false
+	if value <= 0 {
+		return 0, nil, false
 	}
-	return v, true
+
+	return value, raw[sep+1:], true
 }
