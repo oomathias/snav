@@ -189,10 +189,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "esc":
 			return m, tea.Quit
-		case "up", "k", "ctrl+p":
+		case "up", "ctrl+p":
 			m.moveCursor(-1)
 			return returnAfterPreview()
-		case "down", "j", "ctrl+n":
+		case "down", "ctrl+n":
 			m.moveCursor(1)
 			return returnAfterPreview()
 		case "pgup", "ctrl+u":

@@ -10,6 +10,11 @@ func fuzzyScore(text string, queryRaw []rune, queryLower []rune, caseSensitive b
 		return 0, 0, true
 	}
 
+	queryLen := nonSpaceRuneCount(queryLower)
+	if queryLen == 0 {
+		return 0, 0, true
+	}
+
 	qi := skipLeadingSpaces(queryLower, 0)
 	if qi == len(queryLower) {
 		return 0, 0, true
@@ -71,6 +76,13 @@ func fuzzyScore(text string, queryRaw []rune, queryLower []rune, caseSensitive b
 	span := 0
 	if first >= 0 {
 		span = last - first + 1
+	}
+	if span > 0 {
+		if span == queryLen {
+			score += 12
+		} else if span > queryLen {
+			score -= (span - queryLen) * 2
+		}
 	}
 
 	return score, span, true

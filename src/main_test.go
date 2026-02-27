@@ -3,6 +3,10 @@ package main
 import (
 	"reflect"
 	"testing"
+
+	"snav/internal/candidate"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func TestBuildEditorCommandSupportsQuotedPathAndArgs(t *testing.T) {
@@ -85,5 +89,51 @@ func TestCopyRunesReuse(t *testing.T) {
 	out = copyRunesReuse(out, nil)
 	if out != nil {
 		t.Fatalf("copyRunesReuse with nil source should return nil")
+	}
+}
+
+func TestModelUpdateAllowsRuneJAndKInput(t *testing.T) {
+	m := newModel(config{}, nil, nil, nil)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	m1, ok := updated.(model)
+	if !ok {
+		t.Fatalf("expected model after first key update")
+	}
+
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	m2, ok := updated.(model)
+	if !ok {
+		t.Fatalf("expected model after second key update")
+	}
+
+	if got := m2.query; got != "jk" {
+		t.Fatalf("query = %q, want %q", got, "jk")
+	}
+	if got := m2.input.Value(); got != "jk" {
+		t.Fatalf("input value = %q, want %q", got, "jk")
+	}
+}
+
+func TestModelUpdateArrowNavigationStillWorks(t *testing.T) {
+	m := newModel(config{}, nil, nil, nil)
+	m.filtered = []candidate.FilteredCandidate{{Index: 0}, {Index: 1}}
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyDown})
+	m1, ok := updated.(model)
+	if !ok {
+		t.Fatalf("expected model after down key update")
+	}
+	if m1.cursor != 1 {
+		t.Fatalf("cursor after down = %d, want 1", m1.cursor)
+	}
+
+	updated, _ = m1.Update(tea.KeyMsg{Type: tea.KeyUp})
+	m2, ok := updated.(model)
+	if !ok {
+		t.Fatalf("expected model after up key update")
+	}
+	if m2.cursor != 0 {
+		t.Fatalf("cursor after up = %d, want 0", m2.cursor)
 	}
 }

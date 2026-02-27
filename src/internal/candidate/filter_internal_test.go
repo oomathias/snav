@@ -43,6 +43,22 @@ func TestFilterCandidatesPrefersTypeDeclarationOverLocalVariable(t *testing.T) {
 	}
 }
 
+func TestFilterCandidatesPrefersContiguousTextMatch(t *testing.T) {
+	candidates := []Candidate{
+		{ID: 1, File: "billing.ts", Text: "type PolarCheckoutLike = {", Key: "PolarCheckoutLike"},
+		{ID: 2, File: "framework.ts", Text: "export type ValidationCheck = {", Key: "ValidationCheck"},
+		{ID: 3, File: ".mise.toml", Text: "run = \"bun run typecheck\"", Key: "run"},
+	}
+
+	res := FilterCandidates(candidates, "typechec")
+	if len(res) < 3 {
+		t.Fatalf("expected at least 3 matches, got %d", len(res))
+	}
+	if got := candidates[int(res[0].Index)].Text; got != "run = \"bun run typecheck\"" {
+		t.Fatalf("expected contiguous text match first, got %q", got)
+	}
+}
+
 func TestFilterCandidatesSubsetMatchesFull(t *testing.T) {
 	candidates := makeFixtureCandidates(8_000)
 
