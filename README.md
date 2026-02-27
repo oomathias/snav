@@ -1,19 +1,26 @@
-# snav
-
-> [!WARNING]
-> Experimental: behavior may change between releases.
+# 🦘 snav
 
 <p align="center">
-  <img src="./assets/snav.gif" alt="snav demo" />
+  <strong>Interactive symbol finder</strong><br />
 </p>
 
 <p align="center">
-  <strong>Interactive symbol finder for codebases.</strong><br />
+  <i>IDE - Zed</i>
+</p>
+<p align="center">
+  <video controls preload="metadata" src="https://github.com/user-attachments/assets/43d65503-fce5-4b78-be50-de55429a5b4b"></video>
+</p>
+
+<p align="center">
+  <i>Terminal - Ghostty</i>
+</p>
+<p align="center">
+  <video controls preload="metadata" src="https://github.com/user-attachments/assets/8d6067bb-777e-47f0-a273-f528ea9af823"></video>
 </p>
 
 ## What is snav?
 
-`snav` is a terminal UI for jumping to symbols in a repository.
+`snav` is a terminal UI for jumping to any symbols.
 
 Type a query, pick a result, and open the exact `file:line:col`.
 
@@ -62,7 +69,7 @@ snav --root .
 Keys:
 
 - Type to filter symbols
-- `j/k` or arrows: move
+- `up/down` or `ctrl+p/ctrl+n`: move
 - `tab`: toggle preview
 - `enter`: open selected result
 - `ctrl+space`: copy `path:line:col`
@@ -122,9 +129,7 @@ Keys:
 ### 3) Use it
 
 - Press your keybinding
-- Type to filter symbols
-- Move with `j/k` or arrows
-- Press `enter` to open
+- Jump around
 
 ## Cache
 
