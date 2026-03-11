@@ -10,8 +10,12 @@ func TestDefaultRGPatternNamespaceAndClasses(t *testing.T) {
 
 	matchCases := []string{
 		"namespace Symfind.Core;",
+		"module SearchKit",
 		"inline namespace v1 {",
 		"public class SearchIndex : Base {",
+		"public static void Search(string query) {",
+		"data class SearchIndex(val id: Int)",
+		"suspend fun search() = unit",
 		"export default class QueryEngine {",
 		"pub struct GitPanel {",
 		"pub(crate) struct GitPanel {",
@@ -84,8 +88,12 @@ func TestExtractKeyNamespaceAndClasses(t *testing.T) {
 		want string
 	}{
 		{name: "dot namespace", text: "namespace Symfind.Core;", want: "Symfind.Core"},
+		{name: "ruby module", text: "module SearchKit", want: "SearchKit"},
 		{name: "cpp namespace", text: "inline namespace symfind::core {", want: "symfind::core"},
 		{name: "csharp class", text: "public class SearchIndex : Base {", want: "SearchIndex"},
+		{name: "csharp method", text: "public static void Search(string query) {", want: "Search"},
+		{name: "kotlin data class", text: "data class SearchIndex(val id: Int)", want: "SearchIndex"},
+		{name: "kotlin fun", text: "suspend fun search() = unit", want: "search"},
 		{name: "default export class", text: "export default class QueryEngine {", want: "QueryEngine"},
 		{name: "final class", text: "final class Tokenizer extends Base {}", want: "Tokenizer"},
 		{name: "rust pub struct", text: "pub struct GitPanel {", want: "GitPanel"},

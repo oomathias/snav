@@ -16,6 +16,9 @@ func scaffoldLine(lang LangID, line string) ([]byte, int, int) {
 	case LangRust:
 		prefix = "fn _snav_() {\n"
 		suffix = "\n}\n"
+	case LangPHP:
+		prefix = "<?php\n"
+		suffix = "\n"
 	case LangJavaScript, LangTypeScript, LangTSX:
 		prefix = "function _snav_() {\n"
 		suffix = "\n}\n"

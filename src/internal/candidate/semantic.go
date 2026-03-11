@@ -94,7 +94,7 @@ func trimModifierTail(token string, tail string) string {
 
 func semanticScoreForDeclaration(keyword string, rest string) int16 {
 	switch keyword {
-	case "class", "struct", "interface", "enum", "trait", "protocol", "record", "type":
+	case "class", "struct", "interface", "enum", "trait", "protocol", "record", "type", "typealias", "object":
 		return semanticTypeDeclScore
 	case "constructor":
 		return semanticConstructorScore

@@ -8,6 +8,7 @@ import (
 
 var keyRegexes = []*regexp.Regexp{
 	regexp.MustCompile(`^\s*(?:export\s+)?(?:inline\s+)?namespace\s+([A-Za-z_][A-Za-z0-9_]*(?:(?:::|\.)[A-Za-z_][A-Za-z0-9_]*)*)\b`),
+	regexp.MustCompile(`^\s*(?:module|package)\s+([A-Za-z_][A-Za-z0-9_]*(?:(?:::|\.)[A-Za-z_][A-Za-z0-9_]*)*)\b`),
 	regexp.MustCompile(`^\s*(?:(?:export|default|async|public|private|protected|internal|abstract|final|sealed|partial|static)\s+)*(?:function|class|interface|type|enum|record)\s+([A-Za-z_$][A-Za-z0-9_$]*)\b`),
 	regexp.MustCompile(`^\s*(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][A-Za-z0-9_$]*)`),
 	regexp.MustCompile(`^\s*func\s*(?:\([^)]*\)\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\(`),
@@ -15,6 +16,8 @@ var keyRegexes = []*regexp.Regexp{
 	regexp.MustCompile(`^\s*(?:pub(?:\([^)]*\))?\s+)?(?:fn|struct|enum|trait|mod|type|const|static)\s+([A-Za-z_][A-Za-z0-9_]*)`),
 	regexp.MustCompile(`^\s*test\s+"((?:\\.|[^"\\])+)"`),
 	regexp.MustCompile(`^\s*(?:async\s+def|def|class)\s+([A-Za-z_][A-Za-z0-9_]*)`),
+	regexp.MustCompile(`^\s*(?:(?:public|private|protected|internal|static|final|abstract|virtual|override|async|extern|unsafe|sealed|partial|readonly|synchronized|native|strictfp)\s+)+(?:[A-Za-z_][A-Za-z0-9_<>,.?\[\]]*\s+)+([A-Za-z_][A-Za-z0-9_]*)\s*\(`),
+	regexp.MustCompile(`^\s*(?:(?:public|private|protected|internal|abstract|final|sealed|partial|static|open|override|data|inline|suspend|tailrec|operator|infix|external|lateinit|const|inner|annotation|enum|value)\s+)*(?:fun|object|class|interface|typealias)\s+([A-Za-z_][A-Za-z0-9_]*)\b`),
 	regexp.MustCompile(`^\s*(?:interface|class|enum|record)\s+([A-Za-z_][A-Za-z0-9_]*)`),
 	regexp.MustCompile(`^\s*(?:fun|val|var|object|class|interface)\s+([A-Za-z_][A-Za-z0-9_]*)`),
 	regexp.MustCompile(`^\s*\[\[([A-Za-z0-9_.:-]+)\]\]\s*$`),
@@ -71,10 +74,10 @@ var matcherStopWords = map[string]bool{
 	"case": true, "break": true, "continue": true, "default": true,
 	"func": true, "type": true, "const": true, "var": true,
 	"class": true, "interface": true, "enum": true,
-	"namespace": true,
-	"export":    true,
-	"public":    true, "private": true, "protected": true, "internal": true,
+	"namespace": true, "module": true, "package": true,
+	"export": true,
+	"public": true, "private": true, "protected": true, "internal": true,
 	"abstract": true, "final": true, "sealed": true, "partial": true,
 	"static": true, "inline": true,
-	"def": true, "fn": true, "test": true,
+	"def": true, "fn": true, "fun": true, "object": true, "typealias": true, "test": true,
 }

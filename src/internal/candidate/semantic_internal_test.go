@@ -15,3 +15,17 @@ func TestComputeSemanticScoreZigTest(t *testing.T) {
 		t.Fatalf("computeSemanticScore(test) = %d, want %d", got, semanticFunctionScore)
 	}
 }
+
+func TestComputeSemanticScoreKotlinObject(t *testing.T) {
+	got := computeSemanticScore("object SearchIndex")
+	if got != semanticTypeDeclScore {
+		t.Fatalf("computeSemanticScore(object) = %d, want %d", got, semanticTypeDeclScore)
+	}
+}
+
+func TestComputeSemanticScoreKotlinTypeAlias(t *testing.T) {
+	got := computeSemanticScore("typealias SearchIndex = MutableMap<String, Int>")
+	if got != semanticTypeDeclScore {
+		t.Fatalf("computeSemanticScore(typealias) = %d, want %d", got, semanticTypeDeclScore)
+	}
+}

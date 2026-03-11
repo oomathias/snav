@@ -12,6 +12,11 @@ const (
 	Go         ID = "go"
 	Rust       ID = "rust"
 	Zig        ID = "zig"
+	CSharp     ID = "csharp"
+	Java       ID = "java"
+	Kotlin     ID = "kotlin"
+	PHP        ID = "php"
+	Ruby       ID = "ruby"
 	Python     ID = "python"
 	JavaScript ID = "javascript"
 	TypeScript ID = "typescript"
@@ -28,6 +33,16 @@ var extMap = map[string]ID{
 	".go":    Go,
 	".rs":    Rust,
 	".zig":   Zig,
+	".cs":    CSharp,
+	".csx":   CSharp,
+	".java":  Java,
+	".kt":    Kotlin,
+	".kts":   Kotlin,
+	".php":   PHP,
+	".php4":  PHP,
+	".php5":  PHP,
+	".phtml": PHP,
+	".rb":    Ruby,
 	".py":    Python,
 	".js":    JavaScript,
 	".jsx":   JavaScript,
@@ -57,6 +72,9 @@ var fileMap = map[string]ID{
 	".bashrc":           Bash,
 	".zshrc":            Bash,
 	"build.zig":         Zig,
+	"Gemfile":           Ruby,
+	"Rakefile":          Ruby,
+	".irbrc":            Ruby,
 	"Cargo.toml":        TOML,
 	"package-lock.json": JSON,
 	"go.mod":            Go,
@@ -84,6 +102,10 @@ func DetectWithShebang(path string, firstLine string) ID {
 	}
 	lower := strings.ToLower(firstLine)
 	switch {
+	case strings.Contains(lower, "ruby"):
+		return Ruby
+	case strings.Contains(lower, "php"):
+		return PHP
 	case strings.Contains(lower, "python"):
 		return Python
 	case strings.Contains(lower, "bash") || strings.Contains(lower, "zsh") || strings.Contains(lower, "sh"):
