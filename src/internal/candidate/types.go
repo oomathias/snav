@@ -2,7 +2,7 @@ package candidate
 
 import "snav/internal/lang"
 
-const DefaultRGPattern = `^\s*(?:(?:export|default|async|public|private|protected|internal|abstract|final|sealed|partial|static|inline|pub(?:\([^)]*\))?)\s+)*(?:func|function|type|var|const|class|interface|enum|record|def|fn|struct|impl|trait|module|mod|let|protocol|extension|namespace)\b`
+const DefaultRGPattern = `^(?:\s*(?:(?:export|default|async|public|private|protected|internal|abstract|final|sealed|partial|static|inline|open|override|readonly|extern|unsafe|suspend|data|pub(?:\([^)]*\))?)\s+)*(?:func|function|type|typealias|var|const|class|interface|enum|record|def|fn|fun|struct|impl|trait|module|mod|let|object|protocol|extension|namespace|test)\b|\s*(?:(?:public|private|protected|internal|static|final|abstract|virtual|override|async|extern|unsafe|sealed|partial|readonly|synchronized|native|strictfp)\s+)+(?:[A-Za-z_][A-Za-z0-9_<>,.?\[\]]*\s+)+[A-Za-z_][A-Za-z0-9_]*\s*\()`
 const DefaultRGConfigPattern = `^\s*(?:\[\[[A-Za-z0-9_.:-]+\]\]\s*$|\[[A-Za-z0-9_.:-]+\]\s*$|"(?:\\.|[^"\\])+"\s*:|'[^']+'\s*:|-\s*(?:"(?:\\.|[^"\\])+"|'[^']+'|[A-Za-z0-9_.-]+)\s*:|(?:export\s+)?[A-Za-z0-9_.-]+\s*(?::|=)|[A-Za-z0-9_.-]+(?:\s+"(?:\\.|[^"\\])+"){0,2}\s*\{|<\s*[A-Za-z_][A-Za-z0-9_.:-]*(?:\s|>|/>))`
 
 type LangID = lang.ID
@@ -11,6 +11,12 @@ const (
 	LangPlain      LangID = lang.Plain
 	LangGo         LangID = lang.Go
 	LangRust       LangID = lang.Rust
+	LangZig        LangID = lang.Zig
+	LangCSharp     LangID = lang.CSharp
+	LangJava       LangID = lang.Java
+	LangKotlin     LangID = lang.Kotlin
+	LangPHP        LangID = lang.PHP
+	LangRuby       LangID = lang.Ruby
 	LangPython     LangID = lang.Python
 	LangJavaScript LangID = lang.JavaScript
 	LangTypeScript LangID = lang.TypeScript
@@ -99,4 +105,36 @@ var configIncludeGlobs = []string{
 	"*.props",
 	"*.targets",
 	"*.config",
+}
+
+var declarationIncludeGlobs = []string{
+	"*.c",
+	"*.cc",
+	"*.cpp",
+	"*.cxx",
+	"*.h",
+	"*.hh",
+	"*.hpp",
+	"*.hxx",
+	"*.inc",
+	"*.def",
+	"*.td",
+	"*.go",
+	"*.rs",
+	"*.zig",
+	"*.py",
+	"*.js",
+	"*.jsx",
+	"*.mjs",
+	"*.cjs",
+	"*.ts",
+	"*.tsx",
+	"*.java",
+	"*.kt",
+	"*.kts",
+	"*.php",
+	"*.rb",
+	"*.sh",
+	"*.bash",
+	"*.zsh",
 }

@@ -7,19 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"snav/internal/lang"
 	"strings"
 )
 
-type candidateLocation struct {
-	file string
-	line int
-	col  int
-}
+const producerBatchSize = 2048
 
-func StartProducer(ctx context.Context, cfg ProducerConfig) (<-chan Candidate, <-chan error) {
-	out := make(chan Candidate, 4096)
+func StartProducer(ctx context.Context, cfg ProducerConfig) (<-chan []Candidate, <-chan error) {
+	out := make(chan []Candidate, 64)
 	done := make(chan error, 1)
 
 	go func() {
@@ -31,33 +26,45 @@ func StartProducer(ctx context.Context, cfg ProducerConfig) (<-chan Candidate, <
 			pattern = DefaultRGPattern
 		}
 		id := 0
-		seen := make(map[candidateLocation]struct{}, 4096)
-		emitMatch := func(file string, line int, col int, text string) error {
-			cleanFile := filepath.Clean(file)
-			loc := candidateLocation{file: cleanFile, line: line, col: col}
-			if _, exists := seen[loc]; exists {
+		batch := make([]Candidate, 0, producerBatchSize)
+		lastMetaFile := ""
+		lastMetaConfig := false
+		lastMetaLang := LangPlain
+		flush := func() error {
+			if len(batch) == 0 {
 				return nil
 			}
-			seen[loc] = struct{}{}
-
-			id++
-			cand := Candidate{
-				ID:            id,
-				File:          cleanFile,
-				Line:          line,
-				Col:           col,
-				Text:          text,
-				Key:           ExtractKey(text, cleanFile),
-				LangID:        lang.Detect(cleanFile),
-				SemanticScore: computeSemanticScore(text),
-			}
-
 			select {
-			case out <- cand:
+			case out <- batch:
+				batch = make([]Candidate, 0, producerBatchSize)
 				return nil
 			case <-ctx.Done():
 				return ctx.Err()
 			}
+		}
+		emitMatch := func(file string, line int, col int, text string) error {
+			if file != lastMetaFile {
+				lastMetaFile = file
+				lastMetaConfig = looksLikeConfigFile(file)
+				lastMetaLang = lang.Detect(file)
+			}
+
+			id++
+			cand := Candidate{
+				ID:            id,
+				File:          file,
+				Line:          line,
+				Col:           col,
+				Text:          text,
+				Key:           extractKeyWithConfigHint(text, file, lastMetaConfig),
+				LangID:        lastMetaLang,
+				SemanticScore: computeSemanticScore(text),
+			}
+			batch = append(batch, cand)
+			if len(batch) < cap(batch) {
+				return nil
+			}
+			return flush()
 		}
 
 		if err := runRGPass(ctx, cfg.Root, rgArgs(cfg, pattern), emitMatch); err != nil {
@@ -69,6 +76,10 @@ func StartProducer(ctx context.Context, cfg ProducerConfig) (<-chan Candidate, <
 				done <- fmt.Errorf("search config entries: %w", err)
 				return
 			}
+		}
+		if err := flush(); err != nil {
+			done <- err
+			return
 		}
 
 		done <- nil
@@ -95,12 +106,38 @@ func runRGPass(ctx context.Context, root string, args []string, onMatch func(fil
 
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 0, 128*1024), 8*1024*1024)
+	var lastFile string
+	var lastFileRaw []byte
 
 	for scanner.Scan() {
-		file, line, col, text, ok := parseRGVimgrepLine(scanner.Bytes())
+		raw := scanner.Bytes()
+		nul := bytes.IndexByte(raw, 0)
+		if nul <= 0 || nul >= len(raw)-1 {
+			continue
+		}
+
+		pathRaw := raw[:nul]
+		file := lastFile
+		if !bytes.Equal(pathRaw, lastFileRaw) {
+			file = string(pathRaw)
+			lastFile = file
+			lastFileRaw = append(lastFileRaw[:0], pathRaw...)
+		}
+
+		rest := raw[nul+1:]
+		line, rest, ok := parsePositiveIntField(rest)
 		if !ok {
 			continue
 		}
+		col, rest, ok := parsePositiveIntField(rest)
+		if !ok {
+			continue
+		}
+		if n := len(rest); n > 0 && rest[n-1] == '\r' {
+			rest = rest[:n-1]
+		}
+		text := string(rest)
+
 		if err := onMatch(file, line, col, text); err != nil {
 			_ = cmd.Wait()
 			return err
@@ -132,7 +169,12 @@ func shouldIncludeConfigPass(pattern string) bool {
 
 func rgArgs(cfg ProducerConfig, pattern string) []string {
 	args := rgBaseArgs(cfg)
-	args = append(args, pattern, ".")
+	if pattern == DefaultRGPattern {
+		for _, glob := range declarationIncludeGlobs {
+			args = append(args, "--glob", glob)
+		}
+	}
+	args = append(args, pattern)
 	return args
 }
 
@@ -141,7 +183,7 @@ func rgConfigArgs(cfg ProducerConfig) []string {
 	for _, glob := range configIncludeGlobs {
 		args = append(args, "--glob", glob)
 	}
-	args = append(args, DefaultRGConfigPattern, ".")
+	args = append(args, DefaultRGConfigPattern)
 	return args
 }
 
@@ -188,7 +230,10 @@ func parseRGVimgrepLine(raw []byte) (file string, lineNo int, colNo int, text st
 
 	lineNo = parsedLine
 	colNo = parsedCol
-	text = strings.TrimRight(string(rest), "\r")
+	if n := len(rest); n > 0 && rest[n-1] == '\r' {
+		rest = rest[:n-1]
+	}
+	text = string(rest)
 	return file, lineNo, colNo, text, true
 }
 

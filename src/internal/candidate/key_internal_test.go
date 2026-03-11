@@ -10,11 +10,17 @@ func TestDefaultRGPatternNamespaceAndClasses(t *testing.T) {
 
 	matchCases := []string{
 		"namespace Symfind.Core;",
+		"module SearchKit",
 		"inline namespace v1 {",
 		"public class SearchIndex : Base {",
+		"public static void Search(string query) {",
+		"data class SearchIndex(val id: Int)",
+		"suspend fun search() = unit",
 		"export default class QueryEngine {",
 		"pub struct GitPanel {",
 		"pub(crate) struct GitPanel {",
+		"pub fn main() void {",
+		`test "parses config" {`,
 	}
 
 	for _, tc := range matchCases {
@@ -82,12 +88,20 @@ func TestExtractKeyNamespaceAndClasses(t *testing.T) {
 		want string
 	}{
 		{name: "dot namespace", text: "namespace Symfind.Core;", want: "Symfind.Core"},
+		{name: "ruby module", text: "module SearchKit", want: "SearchKit"},
 		{name: "cpp namespace", text: "inline namespace symfind::core {", want: "symfind::core"},
 		{name: "csharp class", text: "public class SearchIndex : Base {", want: "SearchIndex"},
+		{name: "csharp method", text: "public static void Search(string query) {", want: "Search"},
+		{name: "cpp qualified method", text: "Expected<int> LLVMContext::create(int x) {", want: "create"},
+		{name: "go method receiver", text: "func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {", want: "ServeHTTP"},
+		{name: "kotlin data class", text: "data class SearchIndex(val id: Int)", want: "SearchIndex"},
+		{name: "kotlin fun", text: "suspend fun search() = unit", want: "search"},
 		{name: "default export class", text: "export default class QueryEngine {", want: "QueryEngine"},
 		{name: "final class", text: "final class Tokenizer extends Base {}", want: "Tokenizer"},
 		{name: "rust pub struct", text: "pub struct GitPanel {", want: "GitPanel"},
 		{name: "rust scoped pub struct", text: "pub(crate) struct GitPanel {", want: "GitPanel"},
+		{name: "zig const struct", text: "const Mode = enum { fast, slow };", want: "Mode"},
+		{name: "zig test", text: `test "parses config" {`, want: "parses config"},
 		{name: "json key", text: `"editor.fontSize": 14,`, want: "editor.fontSize"},
 		{name: "yaml key", text: "log-level: debug", want: "log-level"},
 		{name: "toml key", text: "log.level = \"debug\"", want: "log.level"},

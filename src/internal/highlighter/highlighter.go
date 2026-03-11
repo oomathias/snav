@@ -15,13 +15,19 @@ import (
 	bashlang "github.com/smacker/go-tree-sitter/bash"
 	clang "github.com/smacker/go-tree-sitter/c"
 	cpplang "github.com/smacker/go-tree-sitter/cpp"
+	csharplang "github.com/smacker/go-tree-sitter/csharp"
 	golang "github.com/smacker/go-tree-sitter/golang"
+	javalang "github.com/smacker/go-tree-sitter/java"
+	kotlinlang "github.com/smacker/go-tree-sitter/kotlin"
+	phplang "github.com/smacker/go-tree-sitter/php"
 	python "github.com/smacker/go-tree-sitter/python"
+	rubylang "github.com/smacker/go-tree-sitter/ruby"
 	rust "github.com/smacker/go-tree-sitter/rust"
 	toml "github.com/smacker/go-tree-sitter/toml"
 	tsxlang "github.com/smacker/go-tree-sitter/typescript/tsx"
 	tslang "github.com/smacker/go-tree-sitter/typescript/typescript"
 	yaml "github.com/smacker/go-tree-sitter/yaml"
+	ziglang "github.com/tree-sitter-grammars/tree-sitter-zig/bindings/go"
 	tsjson "github.com/tree-sitter/tree-sitter-json/bindings/go"
 )
 
@@ -31,6 +37,12 @@ const (
 	LangPlain      LangID = lang.Plain
 	LangGo         LangID = lang.Go
 	LangRust       LangID = lang.Rust
+	LangZig        LangID = lang.Zig
+	LangCSharp     LangID = lang.CSharp
+	LangJava       LangID = lang.Java
+	LangKotlin     LangID = lang.Kotlin
+	LangPHP        LangID = lang.PHP
+	LangRuby       LangID = lang.Ruby
 	LangPython     LangID = lang.Python
 	LangJavaScript LangID = lang.JavaScript
 	LangTypeScript LangID = lang.TypeScript
@@ -214,6 +226,12 @@ func NewHighlighter(cfg HighlighterConfig) *Highlighter {
 		langs: map[LangID]*sitter.Language{
 			LangGo:         golang.GetLanguage(),
 			LangRust:       rust.GetLanguage(),
+			LangZig:        sitter.NewLanguage(ziglang.Language()),
+			LangCSharp:     csharplang.GetLanguage(),
+			LangJava:       javalang.GetLanguage(),
+			LangKotlin:     kotlinlang.GetLanguage(),
+			LangPHP:        phplang.GetLanguage(),
+			LangRuby:       rubylang.GetLanguage(),
 			LangPython:     python.GetLanguage(),
 			LangJavaScript: tslang.GetLanguage(),
 			LangTypeScript: tslang.GetLanguage(),

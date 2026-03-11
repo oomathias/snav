@@ -32,6 +32,31 @@ Type a query, pick a result, and open the exact `file:line:col`.
 - Fast reopen with local cache
 - Works on macOS, Linux, and Windows
 
+## Supported languages
+
+Syntax-highlighted preview currently supports:
+
+- Go
+- Rust
+- Zig
+- C#
+- Java
+- Kotlin
+- PHP
+- Ruby
+- Python
+- JavaScript
+- TypeScript
+- TSX
+- Bash
+- C
+- C++
+- JSON
+- YAML
+- TOML
+
+Common config and markup files such as `.env`, `.ini`, `.properties`, `.tf`, `.hcl`, and `.xml` are also indexed with heuristic key matching, but do not have the same first-class language support as the list above.
+
 ## Install
 
 ### 1) Install `ripgrep`
