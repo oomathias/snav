@@ -11,6 +11,7 @@ const (
 	Plain      ID = "plain"
 	Go         ID = "go"
 	Rust       ID = "rust"
+	Zig        ID = "zig"
 	Python     ID = "python"
 	JavaScript ID = "javascript"
 	TypeScript ID = "typescript"
@@ -26,6 +27,7 @@ const (
 var extMap = map[string]ID{
 	".go":    Go,
 	".rs":    Rust,
+	".zig":   Zig,
 	".py":    Python,
 	".js":    JavaScript,
 	".jsx":   JavaScript,
@@ -54,6 +56,7 @@ var extMap = map[string]ID{
 var fileMap = map[string]ID{
 	".bashrc":           Bash,
 	".zshrc":            Bash,
+	"build.zig":         Zig,
 	"Cargo.toml":        TOML,
 	"package-lock.json": JSON,
 	"go.mod":            Go,

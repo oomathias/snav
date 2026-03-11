@@ -100,10 +100,14 @@ func semanticScoreForDeclaration(keyword string, rest string) int16 {
 		return semanticConstructorScore
 	case "func", "function", "def", "fn", "fun":
 		return semanticFunctionLikeScore(keyword, rest)
-	case "const", "static":
+	case "const":
+		return semanticConstLikeScore(rest)
+	case "static":
 		return semanticConstScore
 	case "namespace", "module", "mod", "package", "impl", "extension":
 		return semanticModuleScore
+	case "test":
+		return semanticFunctionScore
 	case "field", "property":
 		return semanticFieldScore
 	case "let", "var", "val":
@@ -112,6 +116,29 @@ func semanticScoreForDeclaration(keyword string, rest string) int16 {
 		return semanticParamScore
 	default:
 		return 0
+	}
+}
+
+func semanticConstLikeScore(rest string) int16 {
+	name, after := leadingToken(rest)
+	if name == "" {
+		return semanticConstScore
+	}
+
+	after = strings.TrimLeft(after, " \t")
+	if !strings.HasPrefix(after, "=") {
+		return semanticConstScore
+	}
+
+	rhs := strings.TrimLeft(after[1:], " \t")
+	keyword, _ := leadingToken(rhs)
+	switch keyword {
+	case "struct", "enum", "union", "opaque":
+		return semanticTypeDeclScore
+	case "fn":
+		return semanticFunctionScore
+	default:
+		return semanticConstScore
 	}
 }
 

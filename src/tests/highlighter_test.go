@@ -22,3 +22,10 @@ func TestHighlighterDetectLanguageWithShebang(t *testing.T) {
 		t.Fatalf("lang = %q, want %q", lang, highlighter.LangPython)
 	}
 }
+
+func TestHighlighterDetectLanguageRecognizesZigFiles(t *testing.T) {
+	lang := highlighter.DetectLanguage("build.zig")
+	if lang != highlighter.LangZig {
+		t.Fatalf("lang = %q, want %q", lang, highlighter.LangZig)
+	}
+}

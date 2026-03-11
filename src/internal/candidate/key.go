@@ -13,6 +13,7 @@ var keyRegexes = []*regexp.Regexp{
 	regexp.MustCompile(`^\s*func\s*(?:\([^)]*\)\s*)?([A-Za-z_][A-Za-z0-9_]*)\s*\(`),
 	regexp.MustCompile(`^\s*(?:type|var|const)\s+([A-Za-z_][A-Za-z0-9_]*)`),
 	regexp.MustCompile(`^\s*(?:pub(?:\([^)]*\))?\s+)?(?:fn|struct|enum|trait|mod|type|const|static)\s+([A-Za-z_][A-Za-z0-9_]*)`),
+	regexp.MustCompile(`^\s*test\s+"((?:\\.|[^"\\])+)"`),
 	regexp.MustCompile(`^\s*(?:async\s+def|def|class)\s+([A-Za-z_][A-Za-z0-9_]*)`),
 	regexp.MustCompile(`^\s*(?:interface|class|enum|record)\s+([A-Za-z_][A-Za-z0-9_]*)`),
 	regexp.MustCompile(`^\s*(?:fun|val|var|object|class|interface)\s+([A-Za-z_][A-Za-z0-9_]*)`),
@@ -75,5 +76,5 @@ var matcherStopWords = map[string]bool{
 	"public":    true, "private": true, "protected": true, "internal": true,
 	"abstract": true, "final": true, "sealed": true, "partial": true,
 	"static": true, "inline": true,
-	"def": true, "fn": true,
+	"def": true, "fn": true, "test": true,
 }

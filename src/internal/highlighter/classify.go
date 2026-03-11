@@ -184,6 +184,12 @@ var functionContextByLang = map[LangID]map[string]bool{
 		"call_expression":  true,
 		"field_expression": true,
 	},
+	LangZig: {
+		"function_declaration": true,
+		"fn_proto":             true,
+		"call_expression":      true,
+		"field_expression":     true,
+	},
 	LangJavaScript: jsLikeFunctionContexts,
 	LangTypeScript: jsLikeFunctionContexts,
 	LangTSX:        jsLikeFunctionContexts,
@@ -207,6 +213,11 @@ var typeContextByLang = map[LangID]map[string]bool{
 		"enum_item":   true,
 		"trait_item":  true,
 		"type_item":   true,
+	},
+	LangZig: {
+		"variable_declaration": true,
+		"container_field":      true,
+		"parameter":            true,
 	},
 	LangJavaScript: {
 		"class_declaration": true,
@@ -240,16 +251,17 @@ var tsLikeTypeContexts = map[string]bool{
 
 var keywordSet = map[string]bool{
 	"as": true, "async": true, "await": true, "break": true, "case": true,
-	"catch": true, "class": true, "const": true, "continue": true, "def": true,
+	"catch": true, "class": true, "comptime": true, "const": true, "continue": true, "def": true,
 	"default": true, "defer": true, "do": true, "else": true, "enum": true,
-	"export": true, "extends": true, "fallthrough": true, "finally": true,
+	"errdefer": true, "export": true, "extends": true, "fallthrough": true, "finally": true,
 	"fn": true, "for": true, "from": true, "func": true, "function": true,
 	"if": true, "impl": true, "import": true, "in": true, "include": true,
 	"interface": true, "let": true, "loop": true, "match": true, "mod": true,
 	"module": true, "mut": true, "namespace": true, "new": true, "package": true,
-	"pub": true, "raise": true, "return": true, "struct": true, "switch": true,
-	"trait": true, "try": true, "type": true, "use": true, "var": true,
-	"while": true, "with": true, "yield": true,
+	"nosuspend": true, "opaque": true, "orelse": true, "pub": true, "raise": true,
+	"return": true, "struct": true, "switch": true, "test": true, "trait": true,
+	"try": true, "type": true, "union": true, "use": true, "usingnamespace": true,
+	"var": true, "while": true, "with": true, "yield": true,
 }
 
 var operatorSet = map[string]bool{

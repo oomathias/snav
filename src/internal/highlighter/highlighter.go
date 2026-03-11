@@ -22,6 +22,7 @@ import (
 	tsxlang "github.com/smacker/go-tree-sitter/typescript/tsx"
 	tslang "github.com/smacker/go-tree-sitter/typescript/typescript"
 	yaml "github.com/smacker/go-tree-sitter/yaml"
+	ziglang "github.com/tree-sitter-grammars/tree-sitter-zig/bindings/go"
 	tsjson "github.com/tree-sitter/tree-sitter-json/bindings/go"
 )
 
@@ -31,6 +32,7 @@ const (
 	LangPlain      LangID = lang.Plain
 	LangGo         LangID = lang.Go
 	LangRust       LangID = lang.Rust
+	LangZig        LangID = lang.Zig
 	LangPython     LangID = lang.Python
 	LangJavaScript LangID = lang.JavaScript
 	LangTypeScript LangID = lang.TypeScript
@@ -214,6 +216,7 @@ func NewHighlighter(cfg HighlighterConfig) *Highlighter {
 		langs: map[LangID]*sitter.Language{
 			LangGo:         golang.GetLanguage(),
 			LangRust:       rust.GetLanguage(),
+			LangZig:        sitter.NewLanguage(ziglang.Language()),
 			LangPython:     python.GetLanguage(),
 			LangJavaScript: tslang.GetLanguage(),
 			LangTypeScript: tslang.GetLanguage(),

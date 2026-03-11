@@ -15,6 +15,8 @@ func TestDefaultRGPatternNamespaceAndClasses(t *testing.T) {
 		"export default class QueryEngine {",
 		"pub struct GitPanel {",
 		"pub(crate) struct GitPanel {",
+		"pub fn main() void {",
+		`test "parses config" {`,
 	}
 
 	for _, tc := range matchCases {
@@ -88,6 +90,8 @@ func TestExtractKeyNamespaceAndClasses(t *testing.T) {
 		{name: "final class", text: "final class Tokenizer extends Base {}", want: "Tokenizer"},
 		{name: "rust pub struct", text: "pub struct GitPanel {", want: "GitPanel"},
 		{name: "rust scoped pub struct", text: "pub(crate) struct GitPanel {", want: "GitPanel"},
+		{name: "zig const struct", text: "const Mode = enum { fast, slow };", want: "Mode"},
+		{name: "zig test", text: `test "parses config" {`, want: "parses config"},
 		{name: "json key", text: `"editor.fontSize": 14,`, want: "editor.fontSize"},
 		{name: "yaml key", text: "log-level: debug", want: "log-level"},
 		{name: "toml key", text: "log.level = \"debug\"", want: "log.level"},
