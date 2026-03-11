@@ -50,6 +50,28 @@ func TestTestExcludeGlobsAreSpecific(t *testing.T) {
 }
 
 func TestRGArgs(t *testing.T) {
+	t.Run("default pattern adds declaration globs", func(t *testing.T) {
+		cfg := ProducerConfig{}
+		got := rgArgs(cfg, DefaultRGPattern)
+
+		want := []string{
+			"--vimgrep",
+			"--null",
+			"--trim",
+			"--color", "never",
+			"--no-heading",
+			"--smart-case",
+		}
+		for _, glob := range declarationIncludeGlobs {
+			want = append(want, "--glob", glob)
+		}
+		want = append(want, DefaultRGPattern)
+
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("rgArgs = %#v, want %#v", got, want)
+		}
+	})
+
 	t.Run("defaults", func(t *testing.T) {
 		cfg := ProducerConfig{
 			Pattern: "",
@@ -62,7 +84,7 @@ func TestRGArgs(t *testing.T) {
 			"--color", "never",
 			"--no-heading",
 			"--smart-case",
-			"todo", ".",
+			"todo",
 		}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("rgArgs = %#v, want %#v", got, want)
@@ -108,7 +130,6 @@ func TestRGArgs(t *testing.T) {
 			"--glob", "!**/*.spec.*",
 			"--glob", "!**/test_*.py",
 			"func",
-			".",
 		}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("rgArgs = %#v, want %#v", got, want)
@@ -151,7 +172,6 @@ func TestRGConfigArgs(t *testing.T) {
 			"--glob", "*.targets",
 			"--glob", "*.config",
 			DefaultRGConfigPattern,
-			".",
 		}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("rgConfigArgs = %#v, want %#v", got, want)
@@ -219,7 +239,6 @@ func TestRGConfigArgs(t *testing.T) {
 			"--glob", "*.targets",
 			"--glob", "*.config",
 			DefaultRGConfigPattern,
-			".",
 		}
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("rgConfigArgs = %#v, want %#v", got, want)

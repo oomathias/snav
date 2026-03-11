@@ -92,6 +92,8 @@ func TestExtractKeyNamespaceAndClasses(t *testing.T) {
 		{name: "cpp namespace", text: "inline namespace symfind::core {", want: "symfind::core"},
 		{name: "csharp class", text: "public class SearchIndex : Base {", want: "SearchIndex"},
 		{name: "csharp method", text: "public static void Search(string query) {", want: "Search"},
+		{name: "cpp qualified method", text: "Expected<int> LLVMContext::create(int x) {", want: "create"},
+		{name: "go method receiver", text: "func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {", want: "ServeHTTP"},
 		{name: "kotlin data class", text: "data class SearchIndex(val id: Int)", want: "SearchIndex"},
 		{name: "kotlin fun", text: "suspend fun search() = unit", want: "search"},
 		{name: "default export class", text: "export default class QueryEngine {", want: "QueryEngine"},

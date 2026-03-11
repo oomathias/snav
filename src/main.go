@@ -62,7 +62,7 @@ type model struct {
 	cursor int
 	offset int
 
-	producerOut     <-chan candidate.Candidate
+	producerOut     <-chan []candidate.Candidate
 	producerDone    <-chan error
 	scanDone        bool
 	producerCfg     candidate.ProducerConfig
@@ -88,6 +88,11 @@ type model struct {
 }
 
 type tickMsg struct{}
+
+const (
+	producerDrainItemsDefault = 4000
+	producerDrainItemsStartup = 0
+)
 
 func printUsageWithLongFlags(fs *flag.FlagSet, program string) {
 	out := fs.Output()
@@ -115,7 +120,7 @@ func tickCmd() tea.Cmd {
 	return tea.Tick(16*time.Millisecond, func(time.Time) tea.Msg { return tickMsg{} })
 }
 
-func newModel(cfg config, out <-chan candidate.Candidate, done <-chan error, hl *highlighter.Highlighter) model {
+func newModel(cfg config, out <-chan []candidate.Candidate, done <-chan error, hl *highlighter.Highlighter) model {
 	input := textinput.New()
 	input.Prompt = "query> "
 	input.Focus()
@@ -167,7 +172,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.scheduleFilter(0)
 
 	case tickMsg:
-		m.drainProducer(4000)
+		m.drainProducer(m.producerDrainLimit())
 		m.drainProducerDone()
 
 		if m.filterPending && time.Now().After(m.filterDue) {
@@ -255,6 +260,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m model) producerDrainLimit() int {
+	if !m.rebuildFromScan && len(m.queryRunes) == 0 {
+		return producerDrainItemsStartup
+	}
+	return producerDrainItemsDefault
+}
+
 func (m *model) moveCursor(delta int) {
 	m.cursor += delta
 	m.ensureCursor()
@@ -295,28 +307,32 @@ func (m *model) ensureCursor() {
 
 func (m *model) drainProducer(maxItems int) {
 	needFilter := false
+	processed := 0
 	defer func() {
 		if needFilter && !m.resetSelectionOnFilter {
 			m.scheduleFilter(0)
 		}
 	}()
 
-	for range maxItems {
+	for maxItems <= 0 || processed < maxItems {
 		select {
-		case cand, ok := <-m.producerOut:
+		case batch, ok := <-m.producerOut:
 			if !ok {
 				m.producerOut = nil
 				return
 			}
-			if m.rebuildFromScan {
-				m.scanCandidates = append(m.scanCandidates, cand)
-				continue
-			}
-			m.candidates = append(m.candidates, cand)
-			if len(m.queryRunes) == 0 {
-				m.filtered = append(m.filtered, candidate.FilteredCandidate{Index: int32(len(m.candidates) - 1)})
-			} else {
-				needFilter = true
+			for _, cand := range batch {
+				processed++
+				if m.rebuildFromScan {
+					m.scanCandidates = append(m.scanCandidates, cand)
+				} else {
+					m.candidates = append(m.candidates, cand)
+					if len(m.queryRunes) == 0 {
+						m.filtered = append(m.filtered, candidate.FilteredCandidate{Index: int32(len(m.candidates) - 1)})
+					} else {
+						needFilter = true
+					}
+				}
 			}
 		default:
 			return
