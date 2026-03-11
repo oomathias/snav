@@ -46,7 +46,22 @@ git diff --quiet && git diff --cached --quiet || {
   exit 1
 }
 
-git fetch --tags origin
+git fetch --tags origin main
+
+branch="$(git branch --show-current)"
+if [ "$branch" != "main" ]; then
+  printf 'Release must run from main. Current branch: %s\n' "$branch"
+  exit 1
+fi
+
+head_commit="$(git rev-parse HEAD)"
+remote_main_commit="$(git rev-parse origin/main)"
+if [ "$head_commit" != "$remote_main_commit" ]; then
+  printf 'Release must tag the latest origin/main commit.\n'
+  printf 'HEAD:        %s\n' "$head_commit"
+  printf 'origin/main: %s\n' "$remote_main_commit"
+  exit 1
+fi
 
 current="$(svu current --tag.prefix v --tag.mode all)"
 next="$(svu next --tag.prefix v --tag.mode all)"
