@@ -39,6 +39,11 @@ Syntax-highlighted preview currently supports:
 - Go
 - Rust
 - Zig
+- C#
+- Java
+- Kotlin
+- PHP
+- Ruby
 - Python
 - JavaScript
 - TypeScript
