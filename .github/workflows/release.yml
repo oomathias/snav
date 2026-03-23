@@ -29,8 +29,8 @@ jobs:
         with:
           go-version-file: src/go.mod
 
-      - name: Install Zig
-        run: brew install zig
+      - name: Install Zig and ripgrep
+        run: brew install zig ripgrep
 
       - name: Resolve macOS SDK
         run: echo "SDK_PATH=$(xcrun --show-sdk-path)" >> "$GITHUB_ENV"
