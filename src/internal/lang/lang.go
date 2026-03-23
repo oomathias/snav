@@ -68,6 +68,7 @@ var extMap = map[string]ID{
 	".cxx":   CPP,
 	".hpp":   CPP,
 	".hh":    CPP,
+	".hxx":   CPP,
 }
 
 var fileMap = map[string]ID{
