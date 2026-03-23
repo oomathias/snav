@@ -1,6 +1,9 @@
 package candidate
 
 import (
+	"context"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -244,6 +247,58 @@ func TestRGConfigArgs(t *testing.T) {
 			t.Fatalf("rgConfigArgs = %#v, want %#v", got, want)
 		}
 	})
+}
+
+func TestStartProducerDefaultPatternFindsSwiftDeclarations(t *testing.T) {
+	root := t.TempDir()
+	file := filepath.Join(root, "App", "Core", "Service.swift")
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	src := `import Foundation
+
+final class ServiceManager {
+  func install(configPath: String) throws {}
+}
+`
+	if err := os.WriteFile(file, []byte(src), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	out, done := StartProducer(context.Background(), ProducerConfig{Root: root})
+
+	var got []Candidate
+	for batch := range out {
+		got = append(got, batch...)
+	}
+
+	if err := <-done; err != nil {
+		t.Fatalf("StartProducer error: %v", err)
+	}
+
+	if len(got) != 2 {
+		t.Fatalf("len(got) = %d, want 2", len(got))
+	}
+	if got[0].File != filepath.ToSlash(filepath.Join("App", "Core", "Service.swift")) {
+		t.Fatalf("got[0].File = %q", got[0].File)
+	}
+	if got[0].Key != "ServiceManager" {
+		t.Fatalf("got[0].Key = %q, want %q", got[0].Key, "ServiceManager")
+	}
+	if got[1].Key != "install" {
+		t.Fatalf("got[1].Key = %q, want %q", got[1].Key, "install")
+	}
+}
+
+func TestIsNoFilesSearchedMessage(t *testing.T) {
+	msg := "rg: No files were searched, which means ripgrep probably applied a filter you didn't expect.\nRunning with --debug will show why files are being skipped."
+	if !isNoFilesSearchedMessage(msg) {
+		t.Fatalf("expected no-files-searched message to be detected")
+	}
+	if isNoFilesSearchedMessage("rg: regex parse error:\n    (\n    ^\nerror: unclosed group") {
+		t.Fatalf("unexpected match for unrelated rg error")
+	}
 }
 
 func TestShouldIncludeConfigPass(t *testing.T) {

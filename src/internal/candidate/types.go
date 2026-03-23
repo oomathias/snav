@@ -21,6 +21,7 @@ const (
 	LangJavaScript LangID = lang.JavaScript
 	LangTypeScript LangID = lang.TypeScript
 	LangTSX        LangID = lang.TSX
+	LangSwift      LangID = lang.Swift
 	LangYAML       LangID = lang.YAML
 	LangTOML       LangID = lang.TOML
 	LangJSON       LangID = lang.JSON
@@ -132,6 +133,7 @@ var declarationIncludeGlobs = []string{
 	"*.java",
 	"*.kt",
 	"*.kts",
+	"*.swift",
 	"*.php",
 	"*.rb",
 	"*.sh",

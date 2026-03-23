@@ -21,6 +21,7 @@ const (
 	JavaScript ID = "javascript"
 	TypeScript ID = "typescript"
 	TSX        ID = "tsx"
+	Swift      ID = "swift"
 	YAML       ID = "yaml"
 	TOML       ID = "toml"
 	JSON       ID = "json"
@@ -50,6 +51,7 @@ var extMap = map[string]ID{
 	".cjs":   JavaScript,
 	".ts":    TypeScript,
 	".tsx":   TSX,
+	".swift": Swift,
 	".yaml":  YAML,
 	".yml":   YAML,
 	".toml":  TOML,

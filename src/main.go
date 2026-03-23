@@ -96,7 +96,9 @@ const (
 
 func printUsageWithLongFlags(fs *flag.FlagSet, program string) {
 	out := fs.Output()
-	fmt.Fprintf(out, "Usage of %s:\n", program)
+	if _, err := fmt.Fprintf(out, "Usage of %s:\n", program); err != nil {
+		fatalf("write usage: %v", err)
+	}
 
 	var b strings.Builder
 	fs.SetOutput(&b)
@@ -112,7 +114,9 @@ func printUsageWithLongFlags(fs *flag.FlagSet, program string) {
 		if strings.HasPrefix(line, "  -") {
 			line = "  --" + strings.TrimPrefix(line, "  -")
 		}
-		fmt.Fprintln(out, line)
+		if _, err := fmt.Fprintln(out, line); err != nil {
+			fatalf("write usage: %v", err)
+		}
 	}
 }
 
@@ -526,7 +530,9 @@ func (m *model) loadFile(rel string) ([]string, error) {
 }
 
 func fatalf(format string, args ...any) {
-	fmt.Fprintf(os.Stderr, format+"\n", args...)
+	if _, err := fmt.Fprintf(os.Stderr, format+"\n", args...); err != nil {
+		os.Exit(1)
+	}
 	os.Exit(1)
 }
 

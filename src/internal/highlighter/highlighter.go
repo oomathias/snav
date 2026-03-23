@@ -23,6 +23,7 @@ import (
 	python "github.com/smacker/go-tree-sitter/python"
 	rubylang "github.com/smacker/go-tree-sitter/ruby"
 	rust "github.com/smacker/go-tree-sitter/rust"
+	swiftlang "github.com/smacker/go-tree-sitter/swift"
 	toml "github.com/smacker/go-tree-sitter/toml"
 	tsxlang "github.com/smacker/go-tree-sitter/typescript/tsx"
 	tslang "github.com/smacker/go-tree-sitter/typescript/typescript"
@@ -47,6 +48,7 @@ const (
 	LangJavaScript LangID = lang.JavaScript
 	LangTypeScript LangID = lang.TypeScript
 	LangTSX        LangID = lang.TSX
+	LangSwift      LangID = lang.Swift
 	LangYAML       LangID = lang.YAML
 	LangTOML       LangID = lang.TOML
 	LangJSON       LangID = lang.JSON
@@ -236,6 +238,7 @@ func NewHighlighter(cfg HighlighterConfig) *Highlighter {
 			LangJavaScript: tslang.GetLanguage(),
 			LangTypeScript: tslang.GetLanguage(),
 			LangTSX:        tsxlang.GetLanguage(),
+			LangSwift:      swiftlang.GetLanguage(),
 			LangYAML:       yaml.GetLanguage(),
 			LangTOML:       toml.GetLanguage(),
 			LangJSON:       sitter.NewLanguage(tsjson.Language()),

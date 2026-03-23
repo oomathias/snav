@@ -24,6 +24,7 @@ func TestAdditionalLanguageTreeSitterHighlighting(t *testing.T) {
 		{name: "kotlin", lang: LangKotlin, text: "data class SearchIndex(val id: Int)"},
 		{name: "php", lang: LangPHP, text: "function search_index() {}"},
 		{name: "ruby", lang: LangRuby, text: "def search_index; end"},
+		{name: "swift", lang: LangSwift, text: "final class ServiceManager {}"},
 	}
 
 	for _, tt := range tests {

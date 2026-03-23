@@ -155,12 +155,19 @@ func runRGPass(ctx context.Context, root string, args []string, onMatch func(fil
 		}
 		msg := strings.TrimSpace(stderr.String())
 		if msg != "" {
+			if isNoFilesSearchedMessage(msg) {
+				return nil
+			}
 			return fmt.Errorf("rg failed: %s", msg)
 		}
 		return fmt.Errorf("rg failed: %w", err)
 	}
 
 	return nil
+}
+
+func isNoFilesSearchedMessage(msg string) bool {
+	return strings.Contains(msg, "No files were searched")
 }
 
 func shouldIncludeConfigPass(pattern string) bool {

@@ -4,7 +4,7 @@ Guidance for coding agents working in this repository.
 
 ## Repository snapshot
 
-- Language: Go (`src/go.mod`, Go `1.24.2`).
+- Language: Go (`src/go.mod`, Go `1.25.8`).
 - App type: terminal UI CLI (`snav`) for symbol navigation.
 - Entrypoint: `src/main.go`.
 - Key internal packages: `src/internal/candidate`, `src/internal/highlighter`, `src/internal/lang`.

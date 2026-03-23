@@ -19,26 +19,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup mise
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@v4
         with:
           cache: true
 
       - name: Cache Go and lint artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
             ~/.cache/golangci-lint
-          key: ${{ runner.os }}-go-${{ hashFiles('src/go.sum', 'mise.toml') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('src/go.mod', 'src/go.sum', 'mise.toml') }}
           restore-keys: |
             ${{ runner.os }}-go-
-
-      - name: Install tools
-        run: mise install
 
       - name: Format check
         run: mise run fmt-check

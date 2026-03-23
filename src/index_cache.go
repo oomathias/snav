@@ -25,7 +25,7 @@ type diskIndexCache struct {
 	Candidates   []candidate.Candidate
 }
 
-func LoadIndexCache(cfg candidate.ProducerConfig) ([]candidate.Candidate, bool, error) {
+func LoadIndexCache(cfg candidate.ProducerConfig) (candidates []candidate.Candidate, ok bool, err error) {
 	path, err := indexCachePath()
 	if err != nil {
 		return nil, false, err
@@ -38,7 +38,11 @@ func LoadIndexCache(cfg candidate.ProducerConfig) ([]candidate.Candidate, bool, 
 		}
 		return nil, false, err
 	}
-	defer f.Close()
+	defer func() {
+		if closeErr := f.Close(); err == nil {
+			err = closeErr
+		}
+	}()
 
 	var disk diskIndexCache
 	if err := gob.NewDecoder(bufio.NewReaderSize(f, 1<<20)).Decode(&disk); err != nil {

@@ -48,6 +48,7 @@ Syntax-highlighted preview currently supports:
 - JavaScript
 - TypeScript
 - TSX
+- Swift
 - Bash
 - C
 - C++
