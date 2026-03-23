@@ -72,6 +72,12 @@ curl -fsSL https://raw.githubusercontent.com/oomathias/snav/main/install | bash
 
 Default install path: `/usr/local/bin`.
 
+Update an existing install in place:
+
+```bash
+snav update
+```
+
 Optional local install path:
 
 ```bash

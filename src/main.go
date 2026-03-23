@@ -96,7 +96,23 @@ const (
 
 func printUsageWithLongFlags(fs *flag.FlagSet, program string) {
 	out := fs.Output()
-	if _, err := fmt.Fprintf(out, "Usage of %s:\n", program); err != nil {
+	name := filepath.Base(program)
+	if _, err := fmt.Fprintf(out, "Usage of %s:\n", name); err != nil {
+		fatalf("write usage: %v", err)
+	}
+	if _, err := fmt.Fprintf(out, "  %s [flags] [root]\n", name); err != nil {
+		fatalf("write usage: %v", err)
+	}
+	if _, err := fmt.Fprintf(out, "  %s update\n\n", name); err != nil {
+		fatalf("write usage: %v", err)
+	}
+	if _, err := fmt.Fprintln(out, "Commands:"); err != nil {
+		fatalf("write usage: %v", err)
+	}
+	if _, err := fmt.Fprintln(out, "  update  reinstall the latest release into the current executable directory"); err != nil {
+		fatalf("write usage: %v", err)
+	}
+	if _, err := fmt.Fprintln(out, "\nFlags:"); err != nil {
 		fatalf("write usage: %v", err)
 	}
 
@@ -537,6 +553,14 @@ func fatalf(format string, args ...any) {
 }
 
 func main() {
+	handled, err := maybeHandleCommand(context.Background(), os.Args[1:], os.Stdout, os.Stderr)
+	if err != nil {
+		fatalf("%v", err)
+	}
+	if handled {
+		return
+	}
+
 	var cfg config
 	flag.StringVar(&cfg.Root, "root", ".", "search root")
 	flag.StringVar(&cfg.Pattern, "pattern", candidate.DefaultRGPattern, "ripgrep regex pattern")
