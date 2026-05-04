@@ -4,6 +4,7 @@ updates:
     directory: "/src"
     schedule:
       interval: "weekly"
+    labels: []
     groups:
       go-dependencies:
         patterns:
@@ -13,6 +14,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    labels: []
     groups:
       github-actions:
         patterns:

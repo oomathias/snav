@@ -16,6 +16,4 @@ State whether it is working as expected or list known issues.
 
 ## Checklist
 
-- [ ] Linked a discussion:
-  - Issues: `https://github.com/oomathias/snav/discussions/categories/issues`
-  - Feature requests/ideas: `https://github.com/oomathias/snav/discussions/categories/feature-requests-ideas`
+- [ ] Linked an issue (`Fixes #123`, `Closes #123`, or `Refs #123`) or explained why no issue is needed.

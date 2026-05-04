@@ -2,12 +2,12 @@
 
 Thanks for helping improve `snav`.
 
-## Start with a discussion
+## Start with an issue
 
-Before opening a PR, start a discussion so we can align on scope and direction:
+Before opening a PR, open or find an issue so we can align on scope and direction:
 
-- Issues: https://github.com/oomathias/snav/discussions/categories/issues
-- Feature requests/ideas: https://github.com/oomathias/snav/discussions/categories/feature-requests-ideas
+- Bugs and regressions: https://github.com/oomathias/snav/issues/new?labels=bug
+- Feature requests and ideas: https://github.com/oomathias/snav/issues/new?labels=enhancement
 
 ## Prerequisites
 
@@ -56,4 +56,4 @@ mise run ci
 - Create a branch from `main`
 - Keep changes focused and include tests for behavior changes
 - Use clear commit messages (Conventional Commits preferred, for example `feat:`, `fix:`, `refactor:`, `docs:`)
-- Open a PR that explains the problem, approach, and validation steps
+- Open a PR that links the issue and explains the problem, approach, and validation steps
