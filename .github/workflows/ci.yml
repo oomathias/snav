@@ -28,6 +28,7 @@ jobs:
         uses: jdx/mise-action@v4
         with:
           cache: true
+          cache_key_prefix: mise-ci-${{ github.event_name == 'pull_request' && 'pr' || github.ref_name }}
 
       - name: Cache Go and lint artifacts
         uses: actions/cache@v5
@@ -36,9 +37,9 @@ jobs:
             ~/.cache/go-build
             ~/go/pkg/mod
             ~/.cache/golangci-lint
-          key: ${{ runner.os }}-go-${{ hashFiles('src/go.mod', 'src/go.sum', 'mise.toml') }}
+          key: ${{ runner.os }}-${{ github.event_name == 'pull_request' && 'pr' || github.ref_name }}-go-${{ hashFiles('src/go.mod', 'src/go.sum', 'mise.toml') }}
           restore-keys: |
-            ${{ runner.os }}-go-
+            ${{ runner.os }}-${{ github.event_name == 'pull_request' && 'pr' || github.ref_name }}-go-
 
       - name: Format check
         run: mise run fmt-check

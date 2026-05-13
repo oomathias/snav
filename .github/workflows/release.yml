@@ -28,6 +28,17 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: src/go.mod
+          cache: false
+
+      - name: Cache Go release artifacts
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/Library/Caches/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-release-go-${{ hashFiles('src/go.mod', 'src/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-release-go-
 
       - name: Install Zig and ripgrep
         run: brew install zig ripgrep
