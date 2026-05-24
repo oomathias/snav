@@ -6,8 +6,8 @@ Thanks for helping improve `snav`.
 
 Before opening a PR, open or find an issue so we can align on scope and direction:
 
-- Bugs and regressions: https://github.com/oomathias/snav/issues/new?labels=bug
-- Feature requests and ideas: https://github.com/oomathias/snav/issues/new?labels=enhancement
+- Bugs and regressions: https://github.com/m7b-io/snav/issues/new?labels=bug
+- Feature requests and ideas: https://github.com/m7b-io/snav/issues/new?labels=enhancement
 
 ## Prerequisites
 
@@ -18,7 +18,7 @@ Before opening a PR, open or find an issue so we can align on scope and directio
 ## Setup
 
 ```bash
-git clone https://github.com/oomathias/snav.git
+git clone https://github.com/m7b-io/snav.git
 cd snav
 mise install
 ```

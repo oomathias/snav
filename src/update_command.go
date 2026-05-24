@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-const updateInstallScriptURL = "https://raw.githubusercontent.com/oomathias/snav/main/install"
+const updateInstallScriptURL = "https://raw.githubusercontent.com/m7b-io/snav/main/install"
 
 type updateInstallRunner func(context.Context, string, io.Writer, io.Writer) error
 

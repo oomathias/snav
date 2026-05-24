@@ -102,7 +102,11 @@ func TestExternalUpdateCommandUsesInstallerScript(t *testing.T) {
 
 	writeExecutable(t, filepath.Join(stubDir, "curl"), `#!/bin/sh
 out=""
+saw_url=0
 while [ "$#" -gt 0 ]; do
+	if [ "$1" = "$SNAV_UPDATE_EXPECTED_URL" ]; then
+		saw_url=1
+	fi
 	if [ "$1" = "-o" ]; then
 		out="$2"
 		shift 2
@@ -110,6 +114,10 @@ while [ "$#" -gt 0 ]; do
 	fi
 	shift
 done
+if [ "$saw_url" -ne 1 ]; then
+	printf 'missing expected installer url\n' >&2
+	exit 42
+fi
 cat > "$out" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$SNAV_INSTALL_DIR" > "$SNAV_UPDATE_PROBE"
@@ -125,6 +133,7 @@ exec /bin/sh "$@"
 	out, err := runCLIWithEnv(t, []string{
 		"PATH=" + pathValue,
 		"SNAV_UPDATE_PROBE=" + probePath,
+		"SNAV_UPDATE_EXPECTED_URL=https://raw.githubusercontent.com/m7b-io/snav/main/install",
 	}, "update")
 	if err != nil {
 		t.Fatalf("expected update command to succeed, got %v\n%s", err, out)

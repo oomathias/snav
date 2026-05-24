@@ -67,7 +67,7 @@ Common config and markup files such as `.env`, `.ini`, `.properties`, `.tf`, `.h
 ### 2) Install `snav`
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/oomathias/snav/main/install | bash
+curl -fsSL https://raw.githubusercontent.com/m7b-io/snav/main/install | bash
 ```
 
 Default install path: `/usr/local/bin`.
@@ -81,7 +81,7 @@ snav update
 Optional local install path:
 
 ```bash
-SNAV_INSTALL_DIR="$HOME/.local/bin" curl -fsSL https://raw.githubusercontent.com/oomathias/snav/main/install | bash
+SNAV_INSTALL_DIR="$HOME/.local/bin" curl -fsSL https://raw.githubusercontent.com/m7b-io/snav/main/install | bash
 ```
 
 By default, the installer auto-enforces signature verification when `cosign` is available.
@@ -89,7 +89,7 @@ By default, the installer auto-enforces signature verification when `cosign` is 
 Optional: enforce signature verification explicitly (requires `cosign`):
 
 ```bash
-SNAV_REQUIRE_SIGNATURE=1 curl -fsSL https://raw.githubusercontent.com/oomathias/snav/main/install | bash
+SNAV_REQUIRE_SIGNATURE=1 curl -fsSL https://raw.githubusercontent.com/m7b-io/snav/main/install | bash
 ```
 
 ## Terminal usage

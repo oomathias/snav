@@ -3,7 +3,7 @@
 set -euo pipefail
 umask 022
 
-REPO="oomathias/snav"
+REPO="m7b-io/snav"
 BIN_NAME="snav"
 
 # Supported env vars:
