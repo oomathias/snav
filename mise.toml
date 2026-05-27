@@ -1,7 +1,7 @@
 [tools]
-go = "1.25.8"
-golangci-lint = "2.11.4"
-svu = "3.4.0"
+go = "1.26.3"
+golangci-lint = "2.12.2"
+svu = "3.4.1"
 
 [tasks.fmt]
 description = "Format Go source files"
