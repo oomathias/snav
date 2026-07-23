@@ -19,7 +19,7 @@ func openLocation(path string, line int, col int, editorCmd string) error {
 		if _, err := exec.LookPath(name); err != nil {
 			return fmt.Errorf("editor command not found: %s", name)
 		}
-		return exec.Command(name, args...).Start()
+		return exec.Command(name, args...).Run()
 	}
 
 	commands, unavailable := openFileCommands(path)
@@ -147,7 +147,7 @@ func openFileCommands(path string) ([][]string, error) {
 }
 
 func runCommandStart(name string, args []string) error {
-	return exec.Command(name, args...).Start()
+	return exec.Command(name, args...).Run()
 }
 
 func runFirstAvailableCommand(candidates [][]string, run func(name string, args []string) error) (bool, error) {
