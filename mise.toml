@@ -1,6 +1,7 @@
 [tools]
 go = "1.26.5"
 golangci-lint = "2.12.2"
+ripgrep = "14.1.1"
 svu = "3.4.1"
 
 [tasks.fmt]
